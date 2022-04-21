@@ -1,13 +1,8 @@
 import os
 import argparse
-import torch
-import torch.utils.data
-from torch import nn, optim
-from torch.nn import functional as F
-from torchvision import datasets, transforms
-from torchvision.utils import save_image
 import vae_utils
 import gan_utils
+import wta_utils
 import numpy as np
 
 
@@ -56,8 +51,8 @@ def generative_iterated_learning(model_assets, train_data, train_fn, gen_fn, tot
             model_assets = train_model_with_teacher(new_model_assets, model_assets, train_with_teacher_fn, iteration)
         else:
             model_assets = train_model(model_assets, train_data, train_fn, iteration)
-        data_generated = generate_data(model_assets, gen_fn, iteration)
-        train_data = get_train_data_next_iter(train_data, data_generated, add_old_dataset=add_old_dataset)
+            data_generated = generate_data(model_assets, gen_fn, iteration)
+            train_data = get_train_data_next_iter(train_data, data_generated, add_old_dataset=add_old_dataset)
         print(f'=======Iteration {iteration}: Get New Model=======')
         new_model_assets = get_model_assets_next_iter(model_assets=model_assets)
         if iteration % save_image_interval == 0:
@@ -88,7 +83,7 @@ if __name__ == '__main__':
     add_old_dataset = args.add_old_dataset
     gen_batch_size = 500
     gen_num_batch = args.gen_num_batch  # for matching the size of mnist train data, =12
-    model_type = args.model_type  # gan, vae
+    model_type = args.model_type  # gan, vae, wta
     train_with_teacher = args.train_with_teacher
 
     log_dir = f'gen_il_logs/{model_type}_total_iter_{total_iterations}_train_extend_{train_extend}_' \
@@ -112,6 +107,15 @@ if __name__ == '__main__':
         get_model_assets_next_iter = vae_utils.get_model_assets
         get_train_data_next_iter = vae_utils.get_train_data_next_iter
         save_sample_fn = vae_utils.save_sample
+
+    if model_type == 'wta':
+        train_data = wta_utils.get_train_data()
+        train_fn = wta_utils.train
+        train_with_teacher_fn = wta_utils.train_with_teacher
+        gen_fn = wta_utils.gen_data
+        get_model_assets_next_iter = wta_utils.get_model_assets
+        get_train_data_next_iter = wta_utils.get_train_data_next_iter
+        save_sample_fn = wta_utils.save_sample
 
     model_assets = get_model_assets_next_iter()
     generative_iterated_learning(model_assets, train_data, train_fn, gen_fn, total_iterations)

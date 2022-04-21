@@ -251,4 +251,5 @@ def save_sample(model_assets, log_dir, iteration):
         sample = G(SAMPLE_Z).cpu()
     sample += 1
     sample *= 0.5
-    save_image(sample.view(SAMPLE_NUM, 1, 28, 28), f'{log_dir}/sample_iter_{iteration}' + '.png', nrow=32)
+    save_image(sample.view(SAMPLE_NUM, 1, 28, 28), f'{log_dir}/sample_iter_{iteration}_full' + '.png', nrow=32)
+    save_image(sample.view(SAMPLE_NUM, 1, 28, 28)[:64], f'{log_dir}/sample_iter_{iteration}_small' + '.png', nrow=8)
