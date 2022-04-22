@@ -53,7 +53,7 @@ def train(model_assets, train_data, train_extend):
     return model, optimizer
 
 
-def train_with_teacher(new_model_assets, old_model_assets, steps):
+def train_with_teacher(new_model_assets, old_model_assets, steps, **kwargs):
     model, optimizer = new_model_assets
     model.train()
     train_loss = []
@@ -117,7 +117,7 @@ def get_train_data_next_iter(train_data, data_generated, add_old_dataset=False, 
     return train_loader_new
 
 
-def gen_data(model_assets, gen_batch_size, gen_num_batch):
+def gen_data(model_assets, gen_batch_size, gen_num_batch, **kwargs):
     data_all = []
     model, optimizer = model_assets
     model.eval()

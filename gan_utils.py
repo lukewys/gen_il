@@ -153,14 +153,18 @@ def train(model_assets, train_data, train_extend):
     return G, D, G_optimizer, D_optimizer
 
 
-def train_with_teacher(new_model_assets, old_model_assets, steps):
+def train_with_teacher(new_model_assets, old_model_assets, steps, **kwargs):
     G, D, G_optimizer, D_optimizer = new_model_assets
     G.train()
     D.train()
     D_losses, G_losses = [], []
 
     for batch_idx in range(steps):
-        x = gen_data(old_model_assets, BATCH_SIZE, 1).to(device)
+        if kwargs and kwargs['gan_filter_portion_max'] is not None:
+            x = gen_data_by_filter(old_model_assets, BATCH_SIZE, 1, portion_max=kwargs['gan_filter_portion_max'],
+                                   portion_min=kwargs['gan_filter_portion_min'])
+        else:
+            x = gen_data(old_model_assets, BATCH_SIZE, 1).to(device)
         D_losses.append(D_train(x, G, D, D_optimizer))
         G_losses.append(G_train(x, G, D, G_optimizer))
         if batch_idx % 100 == 0:
@@ -232,7 +236,11 @@ def get_train_data_next_iter(train_data, data_generated, add_old_dataset=False, 
     return train_loader_new
 
 
-def gen_data(model_assets, gen_batch_size, gen_num_batch):
+def gen_data(model_assets, gen_batch_size, gen_num_batch, **kwargs):
+    if kwargs and kwargs['gan_filter_portion_max'] is not None:
+        return gen_data_by_filter(model_assets, gen_batch_size, gen_num_batch,
+                                  portion_max=kwargs['gan_filter_portion_max'],
+                                  portion_min=kwargs['gan_filter_portion_min'])
     data_all = []
     G, D, G_optimizer, D_optimizer = model_assets
     G.eval()
@@ -253,3 +261,22 @@ def save_sample(model_assets, log_dir, iteration):
     sample *= 0.5
     save_image(sample.view(SAMPLE_NUM, 1, 28, 28), f'{log_dir}/sample_iter_{iteration}_full' + '.png', nrow=32)
     save_image(sample.view(SAMPLE_NUM, 1, 28, 28)[:64], f'{log_dir}/sample_iter_{iteration}_small' + '.png', nrow=8)
+
+
+def gen_data_by_filter(model_assets, gen_batch_size, gen_num_batch, portion_max=1, portion_min=0.75):
+    # generate data by filtering top k% of the discriminator
+    data_all = []
+    G, D, G_optimizer, D_optimizer = model_assets
+    G.eval()
+    D.eval()
+    filter_portion = portion_max - portion_min
+    gen_num_batch = int(gen_num_batch / filter_portion)
+    with torch.no_grad():
+        for _ in range(gen_num_batch):
+            test_z = torch.randn(gen_batch_size, z_dim, 1, 1).to(device)
+            sample = G(test_z)
+            score = D(sample).cpu()
+            sample = sample[score.argsort()[int(gen_batch_size * portion_min):int(gen_batch_size * portion_max)]]
+            data_all.append(sample.cpu())
+    data_all = torch.cat(data_all, dim=0)
+    return data_all

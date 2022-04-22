@@ -75,6 +75,10 @@ if __name__ == '__main__':
                         help='gen_num_batch')
     parser.add_argument('--train_with_teacher', type=str2bool, nargs='?', const=True,
                         default=False, help='train_with_teacher')
+    parser.add_argument('--gan_filter_portion_max', type=float, default=1.0, metavar='S',
+                        help='gan_filter_portion_max')
+    parser.add_argument('--gan_filter_portion_min', type=float, default=0.75, metavar='S',
+                        help='gan_filter_portion_min')
     args = parser.parse_args()
 
     save_image_interval = args.save_image_interval
@@ -90,10 +94,17 @@ if __name__ == '__main__':
               f'gen_num_batch_{gen_num_batch}_add_old_dataset_{add_old_dataset}_train_with_teacher_{train_with_teacher}'
     os.makedirs(log_dir, exist_ok=True)
 
+    gen_kwargs = {}
+
     if model_type == 'gan':
         train_data = gan_utils.get_train_data()
         train_fn = gan_utils.train
         train_with_teacher_fn = gan_utils.train_with_teacher
+        gen_kwargs = {
+            'gan_gen_filter': True,
+            'gan_filter_portion_max': args.gan_filter_portion_max,
+            'gan_filter_portion_min': args.gan_filter_portion_min,
+        }
         gen_fn = gan_utils.gen_data
         get_model_assets_next_iter = gan_utils.get_model_assets
         get_train_data_next_iter = gan_utils.get_train_data_next_iter
