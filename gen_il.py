@@ -75,9 +75,9 @@ if __name__ == '__main__':
                         help='gen_num_batch')
     parser.add_argument('--train_with_teacher', type=str2bool, nargs='?', const=True,
                         default=False, help='train_with_teacher')
-    parser.add_argument('--gan_filter_portion_max', type=float, default=1.0, metavar='S',
+    parser.add_argument('--gan_filter_portion_max', type=float, default=None, metavar='S',
                         help='gan_filter_portion_max')
-    parser.add_argument('--gan_filter_portion_min', type=float, default=0.75, metavar='S',
+    parser.add_argument('--gan_filter_portion_min', type=float, default=None, metavar='S',
                         help='gan_filter_portion_min')
     args = parser.parse_args()
 
@@ -92,6 +92,9 @@ if __name__ == '__main__':
 
     log_dir = f'gen_il_logs/{model_type}_total_iter_{total_iterations}_train_extend_{train_extend}_' \
               f'gen_num_batch_{gen_num_batch}_add_old_dataset_{add_old_dataset}_train_with_teacher_{train_with_teacher}'
+    if args.gan_filter_portion_max and args.gan_filter_portion_min:
+        log_dir += f'_gan_filter_portion_max_{args.gan_filter_portion_max}' \
+                   f'_gan_filter_portion_min_{args.gan_filter_portion_min}'
     os.makedirs(log_dir, exist_ok=True)
 
     gen_kwargs = {}
