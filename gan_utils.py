@@ -175,14 +175,14 @@ def train_with_teacher(new_model_assets, old_model_assets, steps, **kwargs):
     return G, D, G_optimizer, D_optimizer
 
 
-def get_train_data(batch_size=BATCH_SIZE):
+def get_init_data(batch_size=BATCH_SIZE):
     # MNIST Dataset
     transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize(mean=(0.5), std=(0.5))])
 
     train_dataset = datasets.MNIST(root='./mnist_data/', train=True, transform=transform, download=True)
-    test_dataset = datasets.MNIST(root='./mnist_data/', train=False, transform=transform, download=False)
+    test_dataset = datasets.MNIST(root='./mnist_data/', train=False, transform=transform, download=True)
 
     # Data Loader (Input Pipeline)
     train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True,
@@ -190,7 +190,7 @@ def get_train_data(batch_size=BATCH_SIZE):
     test_loader = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False,
                                               num_workers=NUM_WORKERS)
 
-    return train_loader
+    return train_loader, test_loader
 
 
 def get_new_model():

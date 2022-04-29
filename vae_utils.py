@@ -9,6 +9,7 @@ from torchvision.utils import save_image
 import numpy as np
 from conv_vae_model import VAE
 import train_utils
+from linear_prob_utils import LinearProbeModel
 
 torch.manual_seed(1234)
 
@@ -73,7 +74,7 @@ def train_with_teacher(new_model_assets, old_model_assets, steps, **kwargs):
     return model, optimizer
 
 
-def get_train_data(batch_size=BATCH_SIZE):
+def get_init_data(batch_size=BATCH_SIZE):
     train_loader = torch.utils.data.DataLoader(
         datasets.MNIST('./mnist_data/', train=True, download=True,
                        transform=transforms.Compose([
@@ -82,13 +83,14 @@ def get_train_data(batch_size=BATCH_SIZE):
                        ])),
         batch_size=batch_size, shuffle=True, num_workers=NUM_WORKERS, pin_memory=True)
     test_loader = torch.utils.data.DataLoader(
-        datasets.MNIST('./mnist_data/', train=False, transform=transforms.Compose([
-            transforms.Resize(32),
-            transforms.ToTensor()
-        ])),
+        datasets.MNIST('./mnist_data/', train=False, download=True,
+                       transform=transforms.Compose([
+                           transforms.Resize(32),
+                           transforms.ToTensor()
+                       ])),
         batch_size=batch_size, shuffle=True, num_workers=NUM_WORKERS, pin_memory=True)
 
-    return train_loader
+    return train_loader, test_loader
 
 
 def get_model_assets(model_assets=None, reset_model=True):
@@ -124,3 +126,15 @@ def save_sample(model_assets, log_dir, iteration):
     with torch.no_grad():
         sample = model.decode(SAMPLE_Z).cpu()
     save_image(sample.view(SAMPLE_NUM, 1, 32, 32), f'{log_dir}/sample_iter_{iteration}' + '.png')
+
+def get_linear_probe_model(model_assets):
+    model, optimizer = model_assets
+    model.eval()
+
+    def get_latent_fn(enc_model, x):
+        mu, logvar = enc_model.encoder(x.view(-1, 1, 32, 32))
+        return mu.reshape(mu.shape[0], -1)
+
+    linear_probe_model = LinearProbeModel(model, input_dim=model.latent_dim, output_dim=10,
+                                          get_latent_fn=get_latent_fn)
+    return linear_probe_model.to(device)

@@ -10,6 +10,7 @@ set_seed(1234)
 import vae_utils
 import gan_utils
 import wta_utils
+from linear_prob_utils import linear_probe
 
 
 def train_model(model_assets, train_data, train_fn, iteration):
@@ -51,6 +52,11 @@ def generative_iterated_learning(model_assets, train_data, train_fn, gen_fn, tot
         new_model_assets = get_model_assets_next_iter(model_assets=model_assets)
         if iteration % save_image_interval == 0:
             save_generated_data(model_assets, iteration)
+
+        linear_probe_model = get_linear_probe_model_fn(model_assets)
+        max_acc = linear_probe(linear_probe_model, get_init_data_fn)
+        with open(os.path.join(log_dir, 'max_acc.txt'), 'a') as f:
+            f.write(f'Iter {iteration}: {max_acc}\n')
 
 
 if __name__ == '__main__':
@@ -99,7 +105,8 @@ if __name__ == '__main__':
     gen_kwargs = {}
 
     if model_type == 'gan':
-        train_data = gan_utils.get_train_data()
+        get_init_data_fn = gan_utils.get_init_data
+        train_data, _ = get_init_data_fn()
         train_fn = gan_utils.train
         train_with_teacher_fn = gan_utils.train_with_teacher
         gen_kwargs = {
@@ -113,22 +120,26 @@ if __name__ == '__main__':
         save_sample_fn = gan_utils.save_sample
 
     if model_type == 'vae':
-        train_data = vae_utils.get_train_data()
+        get_init_data_fn = vae_utils.get_init_data
+        train_data, _ = get_init_data_fn()
         train_fn = vae_utils.train
         train_with_teacher_fn = vae_utils.train_with_teacher
         gen_fn = vae_utils.gen_data
         get_model_assets_next_iter = vae_utils.get_model_assets
         get_train_data_next_iter = vae_utils.get_train_data_next_iter
         save_sample_fn = vae_utils.save_sample
+        get_linear_probe_model_fn = vae_utils.get_linear_probe_model
 
     if model_type == 'wta':
-        train_data = wta_utils.get_train_data()
+        get_init_data_fn = wta_utils.get_init_data
+        train_data, _ = get_init_data_fn()
         train_fn = wta_utils.train
         train_with_teacher_fn = wta_utils.train_with_teacher
         gen_fn = wta_utils.gen_data
         get_model_assets_next_iter = wta_utils.get_model_assets
         get_train_data_next_iter = wta_utils.get_train_data_next_iter
         save_sample_fn = wta_utils.save_sample
+        get_linear_probe_model_fn = wta_utils.get_linear_probe_model
 
     model_assets = get_model_assets_next_iter()
     generative_iterated_learning(model_assets, train_data, train_fn, gen_fn, total_iterations)

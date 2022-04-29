@@ -8,6 +8,7 @@ from torchvision.utils import save_image
 import numpy as np
 import copy
 import train_utils
+from linear_prob_utils import LinearProbeModel
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -17,7 +18,7 @@ SAMPLE_NUM = 1024
 SAMPLE_Z = torch.rand(SAMPLE_NUM, 1, 28, 28).to(device)
 DIFF_THRES = 1e-6
 MAX_RECON_ITER = 100
-TOTAL_EPOCH = 2#50  # maybe 100
+TOTAL_EPOCH = 50  # maybe 100
 
 
 def weights_init(m):
@@ -154,20 +155,18 @@ def train_with_teacher(new_model_assets, old_model_assets, steps, **kwargs):
     return model, optimizer
 
 
-def get_train_data(batch_size=BATCH_SIZE):
+def get_init_data(batch_size=BATCH_SIZE):
     train_loader = torch.utils.data.DataLoader(
-        datasets.MNIST('./mnist_data/', train=True, download=True,
-                       transform=transforms.Compose([
-                           transforms.ToTensor()
-                       ])),
-        batch_size=batch_size, shuffle=True, num_workers=NUM_WORKERS, pin_memory=True)
-    test_loader = torch.utils.data.DataLoader(
-        datasets.MNIST('./mnist_data/', train=False, transform=transforms.Compose([
+        datasets.MNIST('./mnist_data/', train=True, download=True, transform=transforms.Compose([
             transforms.ToTensor()
         ])),
         batch_size=batch_size, shuffle=True, num_workers=NUM_WORKERS, pin_memory=True)
-
-    return train_loader
+    test_loader = torch.utils.data.DataLoader(
+        datasets.MNIST('./mnist_data/', train=False, download=True, transform=transforms.Compose([
+            transforms.ToTensor()
+        ])),
+        batch_size=batch_size, shuffle=True, num_workers=NUM_WORKERS, pin_memory=True)
+    return train_loader, test_loader
 
 
 def get_new_model():
@@ -257,5 +256,16 @@ def save_sample(model_assets, log_dir, iteration, thres=DIFF_THRES, max_iteratio
     kernel_img = get_kernel_visualization(model)
     save_image(kernel_img.view(model.code_sz, 1, 28, 28), f'{log_dir}/kernel_iter_{iteration}' + '.png', nrow=8)
 
-# todo: def get_linear_probe_model():
-# todo: def return_train_parameters
+
+def get_linear_probe_model(model_assets):
+    model, optimizer = model_assets
+    model.eval()
+
+    def get_latent_fn(enc_model, x):
+        x = enc_model.enc(x)
+        x = enc_model.spatial_sparsity(x)
+        return x.reshape(x.shape[0], -1)
+
+    linear_probe_model = LinearProbeModel(model, input_dim=model.code_sz * 16 * 16, output_dim=10,
+                                          get_latent_fn=get_latent_fn)
+    return linear_probe_model.to(device)
