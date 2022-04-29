@@ -264,6 +264,9 @@ class VAE(nn.Module):
         mu, logvar = latent_dist
         return reconstruct, mu, logvar
 
+    def encode(self, x):
+        return self.encoder(x.view(-1, 1, 32, 32))
+
     def decode(self, latent_sample):
         return self.decoder(latent_sample)
 

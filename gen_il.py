@@ -1,22 +1,15 @@
 import os
 import argparse
+import numpy as np
+import torch
+
+from train_utils import str2bool, set_seed
+
+set_seed(1234)
+
 import vae_utils
 import gan_utils
 import wta_utils
-import numpy as np
-
-
-def str2bool(v):
-    """Enable boolean in argparse by passing string."""
-    # https://stackoverflow.com/questions/15008758/parsing-boolean-values-with-argparse
-    if isinstance(v, bool):
-        return v
-    if v.lower() in ('yes', 'true', 't', 'y', '1'):
-        return True
-    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
-        return False
-    else:
-        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
 def train_model(model_assets, train_data, train_fn, iteration):
@@ -53,10 +46,25 @@ def generative_iterated_learning(model_assets, train_data, train_fn, gen_fn, tot
             model_assets = train_model(model_assets, train_data, train_fn, iteration)
             data_generated = generate_data(model_assets, gen_fn, iteration)
             train_data = get_train_data_next_iter(train_data, data_generated, add_old_dataset=add_old_dataset)
+            if args.dataset_keep_portion < 1.0:
+                train_data = drop_dataset(train_data, args.dataset_keep_portion)
         print(f'=======Iteration {iteration}: Get New Model=======')
         new_model_assets = get_model_assets_next_iter(model_assets=model_assets)
         if iteration % save_image_interval == 0:
             save_generated_data(model_assets, iteration)
+
+
+def drop_dataset(dataset, keep_portion):
+    data = dataset.data.numpy()
+    targets = dataset.targets.numpy()
+
+    data = data[np.random.choice(data.shape[0], int(data.shape[0] * keep_portion), replace=False), ...]
+    targets = targets[np.random.choice(targets.shape[0], int(targets.shape[0] * keep_portion), replace=False), ...]
+
+    dataset.data = torch.tensor(data)
+    dataset.targets = torch.tensor(targets)
+
+    return dataset
 
 
 if __name__ == '__main__':
@@ -79,6 +87,8 @@ if __name__ == '__main__':
                         help='gan_filter_portion_max')
     parser.add_argument('--gan_filter_portion_min', type=float, default=None, metavar='S',
                         help='gan_filter_portion_min')
+    parser.add_argument('--dataset_keep_portion', type=float, default=1.0, metavar='S',
+                        help='dataset_keep_portion')
     args = parser.parse_args()
 
     save_image_interval = args.save_image_interval
@@ -95,6 +105,8 @@ if __name__ == '__main__':
     if args.gan_filter_portion_max and args.gan_filter_portion_min:
         log_dir += f'_gan_filter_portion_max_{args.gan_filter_portion_max}' \
                    f'_gan_filter_portion_min_{args.gan_filter_portion_min}'
+    if args.dataset_keep_portion < 1.0:
+        log_dir += f'_dataset_keep_portion_{args.dataset_keep_portion}'
     os.makedirs(log_dir, exist_ok=True)
 
     gen_kwargs = {}
