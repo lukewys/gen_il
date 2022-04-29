@@ -45,26 +45,12 @@ def generative_iterated_learning(model_assets, train_data, train_fn, gen_fn, tot
         else:
             model_assets = train_model(model_assets, train_data, train_fn, iteration)
             data_generated = generate_data(model_assets, gen_fn, iteration)
-            train_data = get_train_data_next_iter(train_data, data_generated, add_old_dataset=add_old_dataset)
-            if args.dataset_keep_portion < 1.0:
-                train_data = drop_dataset(train_data, args.dataset_keep_portion)
+            train_data = get_train_data_next_iter(train_data, data_generated, add_old_dataset=add_old_dataset,
+                                                  keep_portion=dataset_keep_portion)
         print(f'=======Iteration {iteration}: Get New Model=======')
         new_model_assets = get_model_assets_next_iter(model_assets=model_assets)
         if iteration % save_image_interval == 0:
             save_generated_data(model_assets, iteration)
-
-
-def drop_dataset(dataset, keep_portion):
-    data = dataset.data.numpy()
-    targets = dataset.targets.numpy()
-
-    data = data[np.random.choice(data.shape[0], int(data.shape[0] * keep_portion), replace=False), ...]
-    targets = targets[np.random.choice(targets.shape[0], int(targets.shape[0] * keep_portion), replace=False), ...]
-
-    dataset.data = torch.tensor(data)
-    dataset.targets = torch.tensor(targets)
-
-    return dataset
 
 
 if __name__ == '__main__':
@@ -99,6 +85,7 @@ if __name__ == '__main__':
     gen_num_batch = args.gen_num_batch  # for matching the size of mnist train data, =12
     model_type = args.model_type  # gan, vae, wta
     train_with_teacher = args.train_with_teacher
+    dataset_keep_portion = args.dataset_keep_portion
 
     log_dir = f'gen_il_logs/{model_type}_total_iter_{total_iterations}_train_extend_{train_extend}_' \
               f'gen_num_batch_{gen_num_batch}_add_old_dataset_{add_old_dataset}_train_with_teacher_{train_with_teacher}'

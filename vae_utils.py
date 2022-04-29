@@ -8,6 +8,7 @@ from torchvision import datasets, transforms
 from torchvision.utils import save_image
 import numpy as np
 from conv_vae_model import VAE
+import train_utils
 
 torch.manual_seed(1234)
 
@@ -17,6 +18,7 @@ BATCH_SIZE = 500
 NUM_WORKERS = 8
 SAMPLE_NUM = 128
 SAMPLE_Z = torch.randn(SAMPLE_NUM, 20).to(device)
+TOTAL_EPOCH = 100
 
 # Reconstruction + KL divergence losses summed over all elements and batch
 def loss_function(recon_x, x, mu, logvar):
@@ -32,8 +34,7 @@ def loss_function(recon_x, x, mu, logvar):
 
 
 def train(model_assets, train_data, train_extend):
-    total_epoch = 100
-    total_epoch = int(np.round(train_extend * total_epoch))
+    total_epoch = int(np.round(train_extend * TOTAL_EPOCH))
     model, optimizer = model_assets
     model.train()
     for epoch in range(total_epoch):
@@ -82,9 +83,9 @@ def get_train_data(batch_size=BATCH_SIZE):
         batch_size=batch_size, shuffle=True, num_workers=NUM_WORKERS, pin_memory=True)
     test_loader = torch.utils.data.DataLoader(
         datasets.MNIST('./mnist_data/', train=False, transform=transforms.Compose([
-                       transforms.Resize(32),
-                       transforms.ToTensor()
-                   ])),
+            transforms.Resize(32),
+            transforms.ToTensor()
+        ])),
         batch_size=batch_size, shuffle=True, num_workers=NUM_WORKERS, pin_memory=True)
 
     return train_loader
@@ -99,22 +100,10 @@ def get_model_assets(model_assets=None, reset_model=True):
         return model_assets
 
 
-def get_train_data_next_iter(train_data, data_generated, add_old_dataset=False, batch_size=BATCH_SIZE):
-    if add_old_dataset:
-        old_data_all = []
-        for batch_idx, (data, _) in enumerate(train_data):
-            old_data_all.append(data)
-        old_data_all = torch.cat(old_data_all, dim=0)
-        data_combined = torch.cat([old_data_all.view(-1, 1, 32, 32), data_generated], dim=0)
-        train_loader_new = torch.utils.data.DataLoader(
-            torch.utils.data.TensorDataset(data_combined, data_combined),
-            batch_size=batch_size, shuffle=True, num_workers=NUM_WORKERS, pin_memory=True)
-        return train_loader_new
-    else:
-        train_loader_new = torch.utils.data.DataLoader(
-            torch.utils.data.TensorDataset(data_generated, data_generated),
-            batch_size=batch_size, shuffle=True, num_workers=NUM_WORKERS, pin_memory=True)
-    return train_loader_new
+def get_train_data_next_iter(train_data, data_generated, add_old_dataset=False, keep_portion=1.0):
+    return train_utils.get_train_data_next_iter(train_data, data_generated, add_old_dataset=add_old_dataset,
+                                                keep_portion=keep_portion, batch_size=BATCH_SIZE,
+                                                num_workers=NUM_WORKERS)
 
 
 def gen_data(model_assets, gen_batch_size, gen_num_batch, **kwargs):

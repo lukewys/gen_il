@@ -2,6 +2,7 @@ import argparse
 import random
 import numpy as np
 import torch
+import torch.utils.data
 
 
 # todo: calculate MAE for measuring reconstruction
@@ -32,6 +33,7 @@ class LARS(torch.optim.Optimizer):
     """
     LARS optimizer, no rate scaling or weight decay for parameters <= 1D.
     """
+
     def __init__(self, params, lr=0, weight_decay=0, momentum=0.9, trust_coefficient=0.001):
         defaults = dict(lr=lr, weight_decay=weight_decay, momentum=momentum, trust_coefficient=trust_coefficient)
         super().__init__(params, defaults)
@@ -45,14 +47,14 @@ class LARS(torch.optim.Optimizer):
                 if dp is None:
                     continue
 
-                if p.ndim > 1: # if not normalization gamma/beta or bias
+                if p.ndim > 1:  # if not normalization gamma/beta or bias
                     dp = dp.add(p, alpha=g['weight_decay'])
                     param_norm = torch.norm(p)
                     update_norm = torch.norm(dp)
                     one = torch.ones_like(param_norm)
                     q = torch.where(param_norm > 0.,
                                     torch.where(update_norm > 0,
-                                    (g['trust_coefficient'] * param_norm / update_norm), one),
+                                                (g['trust_coefficient'] * param_norm / update_norm), one),
                                     one)
                     dp = dp.mul(q)
 
@@ -62,3 +64,28 @@ class LARS(torch.optim.Optimizer):
                 mu = param_state['mu']
                 mu.mul_(g['momentum']).add_(dp)
                 p.add_(mu, alpha=-g['lr'])
+
+
+def get_train_data_next_iter(train_data, data_generated, add_old_dataset=False, keep_portion=1.0,
+                             batch_size=128, num_workers=8):
+    if add_old_dataset:
+        old_data_all = []
+        for batch_idx, (data, _) in enumerate(train_data):
+            old_data_all.append(data)
+        old_data_all = torch.cat(old_data_all, dim=0)
+        data_combined = torch.cat([old_data_all, data_generated], dim=0)
+
+        if keep_portion < 1.0:
+            data_combined = data_combined[
+                np.random.choice(data_combined.shape[0], int(data_combined.shape[0] * keep_portion),
+                                 replace=False), ...]
+
+        train_loader_new = torch.utils.data.DataLoader(
+            torch.utils.data.TensorDataset(data_combined, data_combined),
+            batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True)
+        return train_loader_new
+    else:
+        train_loader_new = torch.utils.data.DataLoader(
+            torch.utils.data.TensorDataset(data_generated, data_generated),
+            batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True)
+    return train_loader_new

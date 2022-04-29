@@ -33,9 +33,9 @@ def save_sample(model_assets, log_dir, iteration):
     for thres in thresholds:
         sample = recon_till_converge(model, SAMPLE_Z, thres=thres, max_iteration=1000).cpu()
         save_image(sample.view(SAMPLE_NUM, 1, 28, 28),
-                   f'{log_dir}/sample_iter_{iteration}_thres_{str(1000)}full' + '.png', nrow=32)
+                   f'{log_dir}/sample_iter_{iteration}_thres_{str(thres)}full' + '.png', nrow=32)
     kernel_img = get_kernel_visualization(model)
-    save_image(kernel_img.view(1, 1, 28, 28), f'{log_dir}/kernel_iter_{iteration}' + '.png', nrow=8)
+    save_image(kernel_img.view(model.code_sz, 1, 28, 28), f'{log_dir}/kernel_iter_{iteration}' + '.png', nrow=8)
 
 
 if __name__ == '__main__':

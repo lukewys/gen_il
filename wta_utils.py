@@ -7,6 +7,7 @@ from torchvision import datasets, transforms
 from torchvision.utils import save_image
 import numpy as np
 import copy
+import train_utils
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -16,6 +17,7 @@ SAMPLE_NUM = 1024
 SAMPLE_Z = torch.rand(SAMPLE_NUM, 1, 28, 28).to(device)
 DIFF_THRES = 1e-6
 MAX_RECON_ITER = 100
+TOTAL_EPOCH = 2#50  # maybe 100
 
 
 def weights_init(m):
@@ -116,8 +118,7 @@ class WTA(nn.Module):
 def train(model_assets, train_data, train_extend):
     model, optimizer = model_assets
     model.train()
-    total_epoch = 50  # maybe 100
-    total_epoch = int(np.round(train_extend * total_epoch))
+    total_epoch = int(np.round(train_extend * TOTAL_EPOCH))
     for epoch in range(total_epoch):
         train_loss = 0
         for batch_idx, (data, _) in enumerate(train_data):
@@ -189,22 +190,10 @@ def get_model_assets(model_assets=None, reset_model=True, use_same_init=True):
         return model_assets
 
 
-def get_train_data_next_iter(train_data, data_generated, add_old_dataset=False, batch_size=BATCH_SIZE):
-    if add_old_dataset:
-        old_data_all = []
-        for batch_idx, (data, _) in enumerate(train_data):
-            old_data_all.append(data)
-        old_data_all = torch.cat(old_data_all, dim=0)
-        data_combined = torch.cat([old_data_all.view(-1, 1, 28, 28), data_generated], dim=0)
-        train_loader_new = torch.utils.data.DataLoader(
-            torch.utils.data.TensorDataset(data_combined, data_combined),
-            batch_size=batch_size, shuffle=True, num_workers=NUM_WORKERS, pin_memory=True)
-        return train_loader_new
-    else:
-        train_loader_new = torch.utils.data.DataLoader(
-            torch.utils.data.TensorDataset(data_generated, data_generated),
-            batch_size=batch_size, shuffle=True, num_workers=NUM_WORKERS, pin_memory=True)
-    return train_loader_new
+def get_train_data_next_iter(train_data, data_generated, add_old_dataset=False, keep_portion=1.0):
+    return train_utils.get_train_data_next_iter(train_data, data_generated, add_old_dataset=add_old_dataset,
+                                                keep_portion=keep_portion, batch_size=BATCH_SIZE,
+                                                num_workers=NUM_WORKERS)
 
 
 def renormalize(x):
@@ -266,7 +255,7 @@ def save_sample(model_assets, log_dir, iteration, thres=DIFF_THRES, max_iteratio
     save_image(sample.view(SAMPLE_NUM, 1, 28, 28), f'{log_dir}/sample_iter_{iteration}_full' + '.png', nrow=32)
     save_image(sample.view(SAMPLE_NUM, 1, 28, 28)[:64], f'{log_dir}/sample_iter_{iteration}_small' + '.png', nrow=8)
     kernel_img = get_kernel_visualization(model)
-    save_image(kernel_img.view(1, 1, 28, 28), f'{log_dir}/kernel_iter_{iteration}' + '.png', nrow=8)
+    save_image(kernel_img.view(model.code_sz, 1, 28, 28), f'{log_dir}/kernel_iter_{iteration}' + '.png', nrow=8)
 
 # todo: def get_linear_probe_model():
 # todo: def return_train_parameters
