@@ -4,12 +4,10 @@ import numpy as np
 import torch
 
 from train_utils import str2bool, set_seed
-
-set_seed(1234)
-
 import vae_utils
 import gan_utils
 import wta_utils
+import sem_utils
 from linear_prob_utils import linear_probe
 
 
@@ -49,14 +47,16 @@ def generative_iterated_learning(model_assets, train_data, train_fn, gen_fn, tot
             train_data = get_train_data_next_iter(train_data, data_generated, add_old_dataset=add_old_dataset,
                                                   keep_portion=dataset_keep_portion)
         print(f'=======Iteration {iteration}: Get New Model=======')
-        new_model_assets = get_model_assets_next_iter(model_assets=model_assets)
+        new_model_assets = get_model_assets_next_iter(model_assets=model_assets, reset_model=args.reset_model,
+                                                      use_same_init=args.use_same_init)
         if iteration % save_image_interval == 0:
             save_generated_data(model_assets, iteration)
 
-        linear_probe_model = get_linear_probe_model_fn(model_assets)
-        max_acc = linear_probe(linear_probe_model, get_init_data_fn)
-        with open(os.path.join(log_dir, 'max_acc.txt'), 'a') as f:
-            f.write(f'Iter {iteration}: {max_acc}\n')
+        if args.linear_probe:
+            linear_probe_model = get_linear_probe_model_fn(model_assets)
+            max_acc = linear_probe(linear_probe_model, get_init_data_fn)
+            with open(os.path.join(log_dir, 'max_acc.txt'), 'a') as f:
+                f.write(f'Iter {iteration}: {max_acc}\n')
 
 
 if __name__ == '__main__':
@@ -81,7 +81,13 @@ if __name__ == '__main__':
                         help='gan_filter_portion_min')
     parser.add_argument('--dataset_keep_portion', type=float, default=1.0, metavar='S',
                         help='dataset_keep_portion')
+    parser.add_argument('--seed', type=int, default=1234, metavar='S', help='seed')
+    parser.add_argument('--reset_model', type=str2bool, nargs='?', const=True, default=True, help='reset_model')
+    parser.add_argument('--use_same_init', type=str2bool, nargs='?', const=True, default=True, help='use_same_init')
+    parser.add_argument('--linear_probe', type=str2bool, nargs='?', const=True, default=False, help='linear_probe')
     args = parser.parse_args()
+
+    set_seed(args.seed)
 
     save_image_interval = args.save_image_interval
     total_iterations = args.total_iterations
@@ -93,8 +99,13 @@ if __name__ == '__main__':
     train_with_teacher = args.train_with_teacher
     dataset_keep_portion = args.dataset_keep_portion
 
+    # print all the args and their values
+    print('\n'.join(f'{k}: {v}' for k, v in sorted(vars(args).items())))
+
     log_dir = f'gen_il_logs/{model_type}_total_iter_{total_iterations}_train_extend_{train_extend}_' \
-              f'gen_num_batch_{gen_num_batch}_add_old_dataset_{add_old_dataset}_train_with_teacher_{train_with_teacher}'
+              f'gen_num_batch_{gen_num_batch}_add_old_dataset_{add_old_dataset}_' \
+              f'train_with_teacher_{train_with_teacher}_seed_{args.seed}_reset_model_{args.reset_model}_' \
+              f'use_same_init_{args.use_same_init}_linear_probe_{args.linear_probe}'
     if args.gan_filter_portion_max and args.gan_filter_portion_min:
         log_dir += f'_gan_filter_portion_max_{args.gan_filter_portion_max}' \
                    f'_gan_filter_portion_min_{args.gan_filter_portion_min}'
@@ -141,5 +152,16 @@ if __name__ == '__main__':
         save_sample_fn = wta_utils.save_sample
         get_linear_probe_model_fn = wta_utils.get_linear_probe_model
 
-    model_assets = get_model_assets_next_iter()
+    if model_type == 'sem':
+        get_init_data_fn = wta_utils.get_init_data
+        train_data, _ = get_init_data_fn()
+        train_fn = wta_utils.train
+        train_with_teacher_fn = wta_utils.train_with_teacher
+        gen_fn = wta_utils.gen_data
+        get_model_assets_next_iter = sem_utils.get_model_assets
+        get_train_data_next_iter = wta_utils.get_train_data_next_iter
+        save_sample_fn = wta_utils.save_sample
+        get_linear_probe_model_fn = wta_utils.get_linear_probe_model
+
+    model_assets = get_model_assets_next_iter(reset_model=args.reset_model, use_same_init=args.use_same_init)
     generative_iterated_learning(model_assets, train_data, train_fn, gen_fn, total_iterations)
