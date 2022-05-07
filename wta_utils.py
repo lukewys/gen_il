@@ -176,12 +176,15 @@ def get_new_model():
     return model, optimizer
 
 
-FIX_MODEL_INIT = get_new_model()
+FIX_MODEL_INIT = None
 
 
 def get_model_assets(model_assets=None, reset_model=True, use_same_init=True):
+    global FIX_MODEL_INIT
     if reset_model:
-        if use_same_init:
+        if use_same_init and FIX_MODEL_INIT is not None:
+            if FIX_MODEL_INIT is None:
+                FIX_MODEL_INIT = get_new_model()
             return copy.deepcopy(FIX_MODEL_INIT)
         else:
             return get_new_model()

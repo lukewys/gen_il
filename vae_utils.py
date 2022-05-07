@@ -1,5 +1,6 @@
 from __future__ import print_function
 import argparse
+import copy
 import torch
 import torch.utils.data
 from torch import nn, optim
@@ -20,6 +21,7 @@ NUM_WORKERS = 8
 SAMPLE_NUM = 128
 SAMPLE_Z = torch.randn(SAMPLE_NUM, 20).to(device)
 TOTAL_EPOCH = 100
+
 
 # Reconstruction + KL divergence losses summed over all elements and batch
 def loss_function(recon_x, x, mu, logvar):
@@ -74,14 +76,41 @@ def train_with_teacher(new_model_assets, old_model_assets, steps, **kwargs):
     return model, optimizer
 
 
-def get_init_data(batch_size=BATCH_SIZE):
-    train_loader = torch.utils.data.DataLoader(
-        datasets.MNIST('./mnist_data/', train=True, download=True,
-                       transform=transforms.Compose([
-                           transforms.Resize(32),
-                           transforms.ToTensor()
-                       ])),
-        batch_size=batch_size, shuffle=True, num_workers=NUM_WORKERS, pin_memory=True)
+def mnist_subset(dataset, classes_to_use):
+    # classes_to_use: a list of class
+    data = dataset.data.numpy()
+    targets = dataset.targets.numpy()
+
+    data_to_keep = []
+    targets_to_keep = []
+    for i in range(len(targets)):
+        if targets[i] in classes_to_use:
+            data_to_keep.append(data[i])
+            targets_to_keep.append(targets[i])
+
+    dataset.data = torch.tensor(np.stack(data_to_keep, axis=0))
+    dataset.targets = torch.tensor(np.array(targets_to_keep))
+    return dataset
+
+
+def get_init_data(batch_size=BATCH_SIZE, holdout_digits=None):
+    if holdout_digits is not None:
+        dataset = datasets.MNIST('./mnist_data/', train=True, download=True,
+                                 transform=transforms.Compose([
+                                     transforms.Resize(32),
+                                     transforms.ToTensor()
+                                 ])),
+        dataset = mnist_subset(dataset, [d for d in range(10) if d not in holdout_digits])
+        train_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True,
+                                                   num_workers=NUM_WORKERS, pin_memory=True)
+    else:
+        train_loader = torch.utils.data.DataLoader(
+            datasets.MNIST('./mnist_data/', train=True, download=True,
+                           transform=transforms.Compose([
+                               transforms.Resize(32),
+                               transforms.ToTensor()
+                           ])),
+            batch_size=batch_size, shuffle=True, num_workers=NUM_WORKERS, pin_memory=True)
     test_loader = torch.utils.data.DataLoader(
         datasets.MNIST('./mnist_data/', train=False, download=True,
                        transform=transforms.Compose([
@@ -93,11 +122,24 @@ def get_init_data(batch_size=BATCH_SIZE):
     return train_loader, test_loader
 
 
-def get_model_assets(model_assets=None, reset_model=True):
+def get_new_model():
+    model = VAE().to(device)
+    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+    return model, optimizer
+
+
+FIX_MODEL_INIT = None
+
+
+def get_model_assets(model_assets=None, reset_model=True, use_same_init=True):
+    global FIX_MODEL_INIT
     if reset_model:
-        model = VAE().to(device)
-        optimizer = optim.Adam(model.parameters(), lr=1e-3)
-        return model, optimizer
+        if use_same_init and FIX_MODEL_INIT is not None:
+            if FIX_MODEL_INIT is None:
+                FIX_MODEL_INIT = get_new_model()
+            return copy.deepcopy(FIX_MODEL_INIT)
+        else:
+            return get_new_model()
     else:
         return model_assets
 
@@ -126,6 +168,7 @@ def save_sample(model_assets, log_dir, iteration):
     with torch.no_grad():
         sample = model.decode(SAMPLE_Z).cpu()
     save_image(sample.view(SAMPLE_NUM, 1, 32, 32), f'{log_dir}/sample_iter_{iteration}' + '.png')
+
 
 def get_linear_probe_model(model_assets):
     model, optimizer = model_assets
