@@ -188,6 +188,8 @@ def get_model_assets(model_assets=None, reset_model=True, use_same_init=True):
             return copy.deepcopy(FIX_MODEL_INIT)
         else:
             return get_new_model()
+    if model_assets is None:
+        return get_new_model()
     else:
         return model_assets
 
