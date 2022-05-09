@@ -52,7 +52,7 @@ def generative_iterated_learning(model_assets, train_data, train_fn, gen_fn, tot
         if iteration % save_image_interval == 0:
             save_generated_data(model_assets, iteration)
 
-        if linear_probe:
+        if train_linear_probe:
             linear_probe_model = get_linear_probe_model_fn(model_assets)
             max_acc = linear_probe(linear_probe_model, get_init_data_fn)
             with open(os.path.join(log_dir, 'max_acc.txt'), 'a') as f:
@@ -101,9 +101,12 @@ if __name__ == '__main__':
     dataset_keep_portion = args.dataset_keep_portion
     reset_model = args.reset_model
     use_same_init = args.use_same_init
-    linear_probe = args.linear_probe
-    holdout_digits = eval(args.holdout_digits)
-    assert type(holdout_digits) == list
+    train_linear_probe = args.linear_probe
+    if args.holdout_digits is not None:
+        holdout_digits = eval(args.holdout_digits)
+        assert type(holdout_digits) == list
+    else:
+        holdout_digits = None
 
     # print all the args and their values
     print('\n'.join(f'{k}: {v}' for k, v in sorted(vars(args).items())))
