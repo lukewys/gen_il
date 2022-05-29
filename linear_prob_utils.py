@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from train_utils import LARS
+from train_utils import LARS, get_init_data
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -83,11 +83,11 @@ class LinearProbeModel(nn.Module):
         return self.linear(h)
 
 
-def linear_probe(model, get_data_fn, batch_size=8192, num_epochs=50):
+def linear_probe(model, dataset_name, transform, batch_size=8192, num_epochs=50):
     # https://github.com/facebookresearch/moco/blob/main/main_lincls.py#L308
     # (yusong) the optimizer hyperparameter is taken from the link, but the lr is set by myself.
 
-    train_loader, test_loader = get_data_fn(batch_size)
+    train_loader, test_loader = get_init_data(transform, dataset_name, batch_size)
 
     base_lr = 1
     milestones = [30, 40]

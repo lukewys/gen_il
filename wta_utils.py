@@ -14,8 +14,9 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 BATCH_SIZE = 100
 NUM_WORKERS = 8
+IMG_SIZE = 28
 SAMPLE_NUM = 1024
-SAMPLE_Z = torch.rand(SAMPLE_NUM, 1, 28, 28).to(device)
+SAMPLE_Z = torch.rand(SAMPLE_NUM, 1, IMG_SIZE, IMG_SIZE).to(device)
 DIFF_THRES = 1e-6
 MAX_RECON_ITER = 100
 TOTAL_EPOCH = 50  # maybe 100
@@ -44,11 +45,10 @@ def spatial_sparsity(x):
 
 class WTA(nn.Module):
     # https://github.com/iwyoo/tf_ConvWTA/blob/master/model.py
-    def __init__(self):
+    def __init__(self, sz=64, code_sz=128, **kwargs):
         super(WTA, self).__init__()
-        sz = 64
         self.sz = sz
-        self.code_sz = 128
+        self.code_sz = code_sz
 
         self.enc = nn.Sequential(
             # input is Z, going into a convolution
@@ -73,7 +73,7 @@ class WTA(nn.Module):
         # torch.rand(5, generator=gen0)
 
     def encode(self, x):
-        h = self.enc(x.view(-1, 1, 28, 28))
+        h = self.enc(x.view(-1, 1, IMG_SIZE, IMG_SIZE))
         return h
 
     def decode(self, z):
@@ -155,22 +155,23 @@ def train_with_teacher(new_model_assets, old_model_assets, steps, **kwargs):
     return model, optimizer
 
 
-def get_init_data(batch_size=BATCH_SIZE):
-    train_loader = torch.utils.data.DataLoader(
-        datasets.MNIST('./mnist_data/', train=True, download=True, transform=transforms.Compose([
-            transforms.ToTensor()
-        ])),
-        batch_size=batch_size, shuffle=True, num_workers=NUM_WORKERS, pin_memory=True)
-    test_loader = torch.utils.data.DataLoader(
-        datasets.MNIST('./mnist_data/', train=False, download=True, transform=transforms.Compose([
-            transforms.ToTensor()
-        ])),
-        batch_size=batch_size, shuffle=True, num_workers=NUM_WORKERS, pin_memory=True)
-    return train_loader, test_loader
+def get_transform(dataset_name):
+    if dataset_name in ['mnist', 'fashion-mnist', 'kuzushiji']:
+        return transforms.Compose([
+            transforms.ToTensor(),
+        ])
+    elif dataset_name == 'omniglot':
+        return transforms.Compose([
+            transforms.ToTensor(),
+            train_utils.flip_image_value,
+            transforms.Resize(28),
+        ])
+    elif dataset_name in ['cifar10', 'cifar100', 'wikiart']:
+        raise NotImplementedError  # TODO
 
 
-def get_new_model():
-    model = WTA().to(device)
+def get_new_model(**kwargs):
+    model = WTA(**kwargs).to(device)
     model.apply(weights_init)
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
     return model, optimizer
@@ -179,12 +180,12 @@ def get_new_model():
 FIX_MODEL_INIT = None
 
 
-def get_model_assets(model_assets=None, reset_model=True, use_same_init=True):
+def get_model_assets(model_assets=None, reset_model=True, use_same_init=True, **kwargs):
     global FIX_MODEL_INIT
     if reset_model:
         if use_same_init and FIX_MODEL_INIT is not None:
             if FIX_MODEL_INIT is None:
-                FIX_MODEL_INIT = get_new_model()
+                FIX_MODEL_INIT = get_new_model(**kwargs)
             return copy.deepcopy(FIX_MODEL_INIT)
         else:
             return get_new_model()
@@ -201,11 +202,11 @@ def get_train_data_next_iter(train_data, data_generated, add_old_dataset=False, 
 
 
 def renormalize(x):
-    # x is a tensor of shape (batch_size, 28, 28)
-    x = x.view(-1, 28 * 28)
+    # x is a tensor of shape (batch_size, IMG_SIZE, IMG_SIZE)
+    x = x.view(-1, IMG_SIZE * IMG_SIZE)
     x = (x - torch.min(x, dim=1, keepdim=True)[0]) / (
             torch.max(x, dim=1, keepdim=True)[0] - torch.min(x, dim=1, keepdim=True)[0])
-    return x.view(-1, 28, 28)
+    return x.view(-1, IMG_SIZE, IMG_SIZE)
 
 
 def recon_till_converge(model, image_batch, thres=1e-6, return_history=False, max_iteration=100):
@@ -235,7 +236,7 @@ def gen_data(model_assets, gen_batch_size, gen_num_batch, thres=DIFF_THRES, max_
     model, optimizer = model_assets
     model.eval()
     for _ in range(gen_num_batch):
-        noise = torch.rand((gen_batch_size, 28, 28)).to(device)
+        noise = torch.rand((gen_batch_size, IMG_SIZE, IMG_SIZE)).to(device)
         sample = recon_till_converge(model, noise, thres=thres, max_iteration=max_iteration).cpu()
         data_all.append(sample)
     data_all = torch.cat(data_all, dim=0)
@@ -244,9 +245,9 @@ def gen_data(model_assets, gen_batch_size, gen_num_batch, thres=DIFF_THRES, max_
 
 def get_kernel_visualization(model):
     code_size = model.code_sz
-    latent = torch.zeros([code_size, code_size, 16, 16])  # See page 167 of the PHD thesis
+    latent = torch.zeros([code_size, code_size, IMG_SIZE - 12, IMG_SIZE - 12])  # See page 167 of the PHD thesis
     for i in range(code_size):
-        latent[i, i, 7, 7] = 1  # Set (8,8) as 1
+        latent[i, i, (IMG_SIZE - 12) // 2, (IMG_SIZE - 12) // 2] = 1  # Set middle point as 1
     with torch.no_grad():
         latent = latent.to(device).float()
         img = model.dec(latent)
@@ -256,10 +257,13 @@ def get_kernel_visualization(model):
 def save_sample(model_assets, log_dir, iteration, thres=DIFF_THRES, max_iteration=MAX_RECON_ITER):
     model, optimizer = model_assets
     sample = recon_till_converge(model, SAMPLE_Z, thres=thres, max_iteration=max_iteration).cpu()
-    save_image(sample.view(SAMPLE_NUM, 1, 28, 28), f'{log_dir}/sample_iter_{iteration}_full' + '.png', nrow=32)
-    save_image(sample.view(SAMPLE_NUM, 1, 28, 28)[:64], f'{log_dir}/sample_iter_{iteration}_small' + '.png', nrow=8)
+    save_image(sample.view(SAMPLE_NUM, 1, IMG_SIZE, IMG_SIZE), f'{log_dir}/sample_iter_{iteration}_full' + '.png',
+               nrow=32)
+    save_image(sample.view(SAMPLE_NUM, 1, IMG_SIZE, IMG_SIZE)[:64], f'{log_dir}/sample_iter_{iteration}_small' + '.png',
+               nrow=8)
     kernel_img = get_kernel_visualization(model)
-    save_image(kernel_img.view(model.code_sz, 1, 28, 28), f'{log_dir}/kernel_iter_{iteration}' + '.png', nrow=8)
+    save_image(kernel_img.view(model.code_sz, 1, IMG_SIZE, IMG_SIZE), f'{log_dir}/kernel_iter_{iteration}' + '.png',
+               nrow=8)
 
 
 def get_linear_probe_model(model_assets):
@@ -271,6 +275,7 @@ def get_linear_probe_model(model_assets):
         x = enc_model.spatial_sparsity(x)
         return x.reshape(x.shape[0], -1)
 
-    linear_probe_model = LinearProbeModel(model, input_dim=model.code_sz * 16 * 16, output_dim=10,
+    linear_probe_model = LinearProbeModel(model, input_dim=model.code_sz * (IMG_SIZE - 12) * (IMG_SIZE - 12),
+                                          output_dim=10,  # TODO: change this to the number of classes
                                           get_latent_fn=get_latent_fn)
     return linear_probe_model.to(device)

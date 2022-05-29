@@ -92,34 +92,49 @@ def mnist_subset(dataset, classes_to_use):
     dataset.targets = torch.tensor(np.array(targets_to_keep))
     return dataset
 
+def get_transform(dataset_name):
+    if dataset_name in ['mnist', 'fashion-mnist', 'kuzushiji']:
+        return transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Resize(32),
+        ])
+    elif dataset_name == 'omniglot':
+        return transforms.Compose([
+            transforms.ToTensor(),
+            train_utils.flip_image_value,
+            transforms.Resize(32),
+        ])
+    elif dataset_name in ['cifar10', 'cifar100', 'wikiart']:
+        raise NotImplementedError  # TODO
 
-def get_init_data(batch_size=BATCH_SIZE, holdout_digits=None):
-    if holdout_digits is not None:
-        dataset = datasets.MNIST('./mnist_data/', train=True, download=True,
-                                 transform=transforms.Compose([
-                                     transforms.Resize(32),
-                                     transforms.ToTensor()
-                                 ])),
-        dataset = mnist_subset(dataset, [d for d in range(10) if d not in holdout_digits])
-        train_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True,
-                                                   num_workers=NUM_WORKERS, pin_memory=True)
-    else:
-        train_loader = torch.utils.data.DataLoader(
-            datasets.MNIST('./mnist_data/', train=True, download=True,
-                           transform=transforms.Compose([
-                               transforms.Resize(32),
-                               transforms.ToTensor()
-                           ])),
-            batch_size=batch_size, shuffle=True, num_workers=NUM_WORKERS, pin_memory=True)
-    test_loader = torch.utils.data.DataLoader(
-        datasets.MNIST('./mnist_data/', train=False, download=True,
-                       transform=transforms.Compose([
-                           transforms.Resize(32),
-                           transforms.ToTensor()
-                       ])),
-        batch_size=batch_size, shuffle=True, num_workers=NUM_WORKERS, pin_memory=True)
 
-    return train_loader, test_loader
+# def get_init_data(batch_size=BATCH_SIZE, holdout_digits=None):
+#     if holdout_digits is not None:
+#         dataset = datasets.MNIST('./mnist_data/', train=True, download=True,
+#                                  transform=transforms.Compose([
+#                                      transforms.Resize(32),
+#                                      transforms.ToTensor()
+#                                  ])),
+#         dataset = mnist_subset(dataset, [d for d in range(10) if d not in holdout_digits])
+#         train_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True,
+#                                                    num_workers=NUM_WORKERS, pin_memory=True)
+#     else:
+#         train_loader = torch.utils.data.DataLoader(
+#             datasets.MNIST('./mnist_data/', train=True, download=True,
+#                            transform=transforms.Compose([
+#                                transforms.Resize(32),
+#                                transforms.ToTensor()
+#                            ])),
+#             batch_size=batch_size, shuffle=True, num_workers=NUM_WORKERS, pin_memory=True)
+#     test_loader = torch.utils.data.DataLoader(
+#         datasets.MNIST('./mnist_data/', train=False, download=True,
+#                        transform=transforms.Compose([
+#                            transforms.Resize(32),
+#                            transforms.ToTensor()
+#                        ])),
+#         batch_size=batch_size, shuffle=True, num_workers=NUM_WORKERS, pin_memory=True)
+#
+#     return train_loader, test_loader
 
 
 def get_new_model():

@@ -175,22 +175,21 @@ def train_with_teacher(new_model_assets, old_model_assets, steps, **kwargs):
     return G, D, G_optimizer, D_optimizer
 
 
-def get_init_data(batch_size=BATCH_SIZE):
-    # MNIST Dataset
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize(mean=(0.5), std=(0.5))])
-
-    train_dataset = datasets.MNIST(root='./mnist_data/', train=True, transform=transform, download=True)
-    test_dataset = datasets.MNIST(root='./mnist_data/', train=False, transform=transform, download=True)
-
-    # Data Loader (Input Pipeline)
-    train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True,
-                                               num_workers=NUM_WORKERS)
-    test_loader = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False,
-                                              num_workers=NUM_WORKERS)
-
-    return train_loader, test_loader
+def get_transform(dataset_name):
+    if dataset_name in ['mnist', 'fashion-mnist', 'kuzushiji']:
+        return transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(mean=(0.5), std=(0.5))
+        ])
+    elif dataset_name == 'omniglot':
+        return transforms.Compose([
+            transforms.ToTensor(),
+            train_utils.flip_image_value,
+            transforms.Resize(28),
+            transforms.Normalize(mean=(0.5), std=(0.5))
+        ])
+    elif dataset_name in ['cifar10', 'cifar100', 'wikiart']:
+        raise NotImplementedError  # TODO
 
 
 def get_new_model():
@@ -274,3 +273,7 @@ def gen_data_by_filter(model_assets, gen_batch_size, gen_num_batch, portion_max=
             data_all.append(sample.cpu())
     data_all = torch.cat(data_all, dim=0)
     return data_all
+
+
+def get_linear_probe_model(model_assets):
+    raise NotImplementedError('Not implemented linear probe in GAN')

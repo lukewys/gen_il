@@ -3,9 +3,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import copy
-from wta_utils import weights_init
+from wta_utils import weights_init, train, train_with_teacher, gen_data, get_train_data_next_iter, \
+    save_sample, get_linear_probe_model, BATCH_SIZE
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 # SEM will not work in digits that are not setting.
 class SEM(nn.Module):

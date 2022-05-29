@@ -3,7 +3,7 @@ import argparse
 import numpy as np
 import torch
 
-from train_utils import str2bool, set_seed
+from train_utils import str2bool, set_seed, get_init_data
 import vae_utils
 import gan_utils
 import wta_utils
@@ -54,7 +54,7 @@ def generative_iterated_learning(model_assets, train_data, train_fn, gen_fn, tot
 
         if train_linear_probe:
             linear_probe_model = get_linear_probe_model_fn(model_assets)
-            max_acc = linear_probe(linear_probe_model, get_init_data_fn)
+            max_acc = linear_probe(linear_probe_model, dataset_name, model_utils.get_transform(dataset_name))
             with open(os.path.join(log_dir, 'max_acc.txt'), 'a') as f:
                 f.write(f'Iter {iteration}: {max_acc}\n')
 
@@ -86,10 +86,12 @@ if __name__ == '__main__':
     parser.add_argument('--use_same_init', type=str2bool, nargs='?', const=True, default=True, help='use_same_init')
     parser.add_argument('--linear_probe', type=str2bool, nargs='?', const=True, default=False, help='linear_probe')
     parser.add_argument('--holdout_digits', type=str, default=None, metavar='S', help='holdout_digits')
+    parser.add_argument('--dataset_name', type=str, default=None, metavar='S', help='mnist')
     args = parser.parse_args()
 
     set_seed(args.seed)
 
+    dataset_name = args.dataset_name
     save_image_interval = args.save_image_interval
     total_iterations = args.total_iterations
     train_extend = args.train_extend  # % of training steps
@@ -114,7 +116,7 @@ if __name__ == '__main__':
     log_dir = f'gen_il_logs/{model_type}_total_iter_{total_iterations}_train_extend_{train_extend}_' \
               f'gen_num_batch_{gen_num_batch}_add_old_dataset_{add_old_dataset}_' \
               f'train_with_teacher_{train_with_teacher}_seed_{args.seed}_reset_model_{reset_model}_' \
-              f'use_same_init_{use_same_init}_linear_probe_{linear_probe}_holdout_digits_{holdout_digits}'
+              f'use_same_init_{use_same_init}_train_linear_probe_{train_linear_probe}_holdout_digits_{holdout_digits}'
 
     if args.gan_filter_portion_max and args.gan_filter_portion_min:
         log_dir += f'_gan_filter_portion_max_{args.gan_filter_portion_max}' \
@@ -126,52 +128,30 @@ if __name__ == '__main__':
     gen_kwargs = {}
 
     if model_type == 'gan':
-        get_init_data_fn = gan_utils.get_init_data
-        train_data, _ = get_init_data_fn()
-        train_fn = gan_utils.train
-        train_with_teacher_fn = gan_utils.train_with_teacher
+        model_utils = gan_utils
         gen_kwargs = {
             'gan_gen_filter': True,
             'gan_filter_portion_max': args.gan_filter_portion_max,
             'gan_filter_portion_min': args.gan_filter_portion_min,
         }
-        gen_fn = gan_utils.gen_data
-        get_model_assets_next_iter = gan_utils.get_model_assets
-        get_train_data_next_iter = gan_utils.get_train_data_next_iter
-        save_sample_fn = gan_utils.save_sample
-
     if model_type == 'vae':
-        get_init_data_fn = vae_utils.get_init_data
-        train_data, _ = get_init_data_fn()
-        train_fn = vae_utils.train
-        train_with_teacher_fn = vae_utils.train_with_teacher
-        gen_fn = vae_utils.gen_data
-        get_model_assets_next_iter = vae_utils.get_model_assets
-        get_train_data_next_iter = vae_utils.get_train_data_next_iter
-        save_sample_fn = vae_utils.save_sample
-        get_linear_probe_model_fn = vae_utils.get_linear_probe_model
+        model_utils = vae_utils
+    elif model_type == 'wta':
+        model_utils = wta_utils
+    elif model_type == 'sem':
+        model_utils = sem_utils
+    else:
+        raise NotImplementedError
 
-    if model_type == 'wta':
-        get_init_data_fn = wta_utils.get_init_data
-        train_data, _ = get_init_data_fn()
-        train_fn = wta_utils.train
-        train_with_teacher_fn = wta_utils.train_with_teacher
-        gen_fn = wta_utils.gen_data
-        get_model_assets_next_iter = wta_utils.get_model_assets
-        get_train_data_next_iter = wta_utils.get_train_data_next_iter
-        save_sample_fn = wta_utils.save_sample
-        get_linear_probe_model_fn = wta_utils.get_linear_probe_model
+    train_fn = model_utils.train
+    train_with_teacher_fn = model_utils.train_with_teacher
+    gen_fn = model_utils.gen_data
+    get_model_assets_next_iter = model_utils.get_model_assets
+    get_train_data_next_iter = model_utils.get_train_data_next_iter
+    save_sample_fn = model_utils.save_sample
+    get_linear_probe_model_fn = model_utils.get_linear_probe_model
 
-    if model_type == 'sem':
-        get_init_data_fn = wta_utils.get_init_data
-        train_data, _ = get_init_data_fn()
-        train_fn = wta_utils.train
-        train_with_teacher_fn = wta_utils.train_with_teacher
-        gen_fn = wta_utils.gen_data
-        get_model_assets_next_iter = sem_utils.get_model_assets
-        get_train_data_next_iter = wta_utils.get_train_data_next_iter
-        save_sample_fn = wta_utils.save_sample
-        get_linear_probe_model_fn = wta_utils.get_linear_probe_model
+    train_data, test_data = get_init_data(model_utils.get_transform(dataset_name), dataset_name, model_utils.BATCH_SIZE)
 
     model_assets = get_model_assets_next_iter(reset_model=reset_model, use_same_init=use_same_init)
     generative_iterated_learning(model_assets, train_data, train_fn, gen_fn, total_iterations)
