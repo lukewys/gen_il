@@ -2,7 +2,8 @@ import os
 import argparse
 import numpy as np
 
-from utils.train_utils import str2bool, set_seed, get_init_data
+from utils.train_utils import str2bool, set_seed
+from utils.data_utils import get_init_data
 from models import sem_utils, wta_utils, vae_utils, gan_utils
 from evaluate.linear_probe import linear_probe
 

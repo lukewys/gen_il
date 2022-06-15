@@ -1,7 +1,9 @@
 import os
 import torch
 import argparse
-from utils.train_utils import get_init_data, set_seed
+from utils.train_utils import set_seed
+from utils.data_utils import get_init_data
+
 set_seed(1234)
 
 from models.wta_utils import get_model_assets, recon_till_converge, save_image, get_kernel_visualization, \

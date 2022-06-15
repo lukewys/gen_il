@@ -6,6 +6,8 @@ from torchvision.utils import save_image
 import numpy as np
 import copy
 import train_utils
+
+import utils.data_utils
 from evaluate.linear_probe import LinearProbeModel
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -165,7 +167,7 @@ def get_transform(dataset_name):
     elif dataset_name == 'omniglot':
         return transforms.Compose([
             transforms.ToTensor(),
-            train_utils.flip_image_value,
+            utils.data_utils.flip_image_value,
             transforms.Resize(28),
         ])
     elif dataset_name in ['cifar10', 'cifar100', 'wikiart']:
@@ -198,9 +200,9 @@ def get_model_assets(model_assets=None, reset_model=True, use_same_init=True, **
 
 
 def get_train_data_next_iter(train_data, data_generated, add_old_dataset=False, keep_portion=1.0):
-    return train_utils.get_train_data_next_iter(train_data, data_generated, add_old_dataset=add_old_dataset,
-                                                keep_portion=keep_portion, batch_size=BATCH_SIZE,
-                                                num_workers=NUM_WORKERS)
+    return utils.data_utils.get_train_data_next_iter(train_data, data_generated, add_old_dataset=add_old_dataset,
+                                                     keep_portion=keep_portion, batch_size=BATCH_SIZE,
+                                                     num_workers=NUM_WORKERS)
 
 
 def renormalize(x):
