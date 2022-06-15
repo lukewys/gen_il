@@ -2,3 +2,4 @@
 /gan_mnist.py
 /vae_conv.py
 /vae_pytorch_official.py
+.idea/

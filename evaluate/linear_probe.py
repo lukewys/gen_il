@@ -1,9 +1,8 @@
 import time
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
-from train_utils import LARS, get_init_data
+from utils.train_utils import get_init_data
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 

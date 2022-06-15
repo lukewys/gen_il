@@ -1,16 +1,15 @@
 from __future__ import print_function
-import argparse
 import copy
 import torch
 import torch.utils.data
-from torch import nn, optim
+from torch import optim
 from torch.nn import functional as F
-from torchvision import datasets, transforms
+from torchvision import transforms
 from torchvision.utils import save_image
 import numpy as np
 from conv_vae_model import VAE
 import train_utils
-from linear_prob_utils import LinearProbeModel
+from evaluate.linear_probe import LinearProbeModel
 
 torch.manual_seed(1234)
 

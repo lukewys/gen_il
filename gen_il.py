@@ -1,14 +1,10 @@
 import os
 import argparse
 import numpy as np
-import torch
 
-from train_utils import str2bool, set_seed, get_init_data
-import vae_utils
-import gan_utils
-import wta_utils
-import sem_utils
-from linear_prob_utils import linear_probe
+from utils.train_utils import str2bool, set_seed, get_init_data
+from models import sem_utils, wta_utils, vae_utils, gan_utils
+from evaluate.linear_probe import linear_probe
 
 
 def train_model(model_assets, train_data, train_fn, iteration):

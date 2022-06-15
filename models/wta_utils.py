@@ -1,14 +1,12 @@
-import argparse
 import torch
 import torch.utils.data
 from torch import nn, optim
-from torch.nn import functional as F
-from torchvision import datasets, transforms
+from torchvision import transforms
 from torchvision.utils import save_image
 import numpy as np
 import copy
 import train_utils
-from linear_prob_utils import LinearProbeModel
+from evaluate.linear_probe import LinearProbeModel
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -45,10 +43,14 @@ def spatial_sparsity(x):
 
 class WTA(nn.Module):
     # https://github.com/iwyoo/tf_ConvWTA/blob/master/model.py
-    def __init__(self, sz=64, code_sz=128, **kwargs):
+    def __init__(self, sz=64, code_sz=128,
+                 lifetime_sparsity_rate=0.05,
+                 channel_sparsity_rate=1, **kwargs):
         super(WTA, self).__init__()
         self.sz = sz
         self.code_sz = code_sz
+        self.lifetime_sparsity_rate = lifetime_sparsity_rate
+        self.channel_sparsity_rate = channel_sparsity_rate
 
         self.enc = nn.Sequential(
             # input is Z, going into a convolution
@@ -59,14 +61,14 @@ class WTA(nn.Module):
             nn.Conv2d(sz, self.code_sz, 5, 1, padding=0),
             nn.ReLU(True),
         )
-        self.sig = nn.Sigmoid()
         self.dec = nn.Sequential(
             # input is Z, going into a convolution
             nn.ConvTranspose2d(self.code_sz, sz, 5, 1, 0),
             nn.ReLU(True),
             nn.ConvTranspose2d(sz, sz, 5, 1, 0),
             nn.ReLU(True),
-            nn.ConvTranspose2d(sz, 1, 5, 1, 0)
+            nn.ConvTranspose2d(sz, 1, 5, 1, 0),
+            nn.Sigmoid()
         )
         # self.internal_random_state = torch.Generator()
         # self.internal_random_state.manual_seed(12345)
@@ -104,14 +106,14 @@ class WTA(nn.Module):
         batch_mask = batch_mask.reshape(shp)
         return h * batch_mask
 
-    def forward(self, x, spatial=True, lifetime=True, channel=False):
+    def forward(self, x, spatial=True, lifetime=True):
         z = self.encode(x)
         if spatial:
             z = self.spatial_sparsity(z)
-        if channel:
+        if self.channel_sparsity_rate < 1:
             z = self.channel_sparsity(z)
         if lifetime:
-            z = self.lifetime_sparsity(z)
+            z = self.lifetime_sparsity(z, self.lifetime_sparsity_rate)
         out = self.decode(z)
         return out
 
