@@ -14,6 +14,11 @@ def train_model(model_assets, train_data, train_fn, iteration):
     return model_assets
 
 
+def eval_model(model_assets, test_data, eval_fn, iteration):
+    print(f'=======Iteration {iteration}: Eval Model=======')
+    eval_fn(model_assets, test_data)
+
+
 def train_model_with_teacher(new_model_assets, old_model_assets, train_with_teacher_fn, iteration):
     print(f'=======Iteration {iteration}: Train Model With Teacher=======')
     total_steps = 3000
@@ -43,6 +48,8 @@ def generative_iterated_learning(model_assets, train_data, train_fn, gen_fn, tot
             data_generated = generate_data(model_assets, gen_fn, iteration)
             train_data = get_train_data_next_iter(train_data, data_generated, add_old_dataset=add_old_dataset,
                                                   keep_portion=dataset_keep_portion)
+        eval_model(model_assets, test_data, eval_fn, iteration)
+
         print(f'=======Iteration {iteration}: Get New Model=======')
         new_model_assets = get_model_assets_next_iter(model_assets=model_assets, reset_model=reset_model,
                                                       use_same_init=use_same_init)
@@ -110,7 +117,7 @@ if __name__ == '__main__':
     # print all the args and their values
     print('\n'.join(f'{k}: {v}' for k, v in sorted(vars(args).items())))
 
-    log_dir = f'gen_il_logs/{model_type}_total_iter_{total_iterations}_train_extend_{train_extend}_' \
+    log_dir = f'gen_il_logs/{model_type}_{dataset_name}_total_iter_{total_iterations}_train_extend_{train_extend}_' \
               f'gen_num_batch_{gen_num_batch}_add_old_dataset_{add_old_dataset}_' \
               f'train_with_teacher_{train_with_teacher}_seed_{args.seed}_reset_model_{reset_model}_' \
               f'use_same_init_{use_same_init}_train_linear_probe_{train_linear_probe}_holdout_digits_{holdout_digits}'
@@ -141,6 +148,7 @@ if __name__ == '__main__':
         raise NotImplementedError
 
     train_fn = model_utils.train
+    eval_fn = model_utils.evaluate
     train_with_teacher_fn = model_utils.train_with_teacher
     gen_fn = model_utils.gen_data
     get_model_assets_next_iter = model_utils.get_model_assets

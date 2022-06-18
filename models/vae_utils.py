@@ -10,7 +10,6 @@ import numpy as np
 
 import utils.data_utils
 from conv_vae_model import VAE
-import train_utils
 from evaluate.linear_probe import LinearProbeModel
 
 torch.manual_seed(1234)
@@ -37,24 +36,26 @@ def loss_function(recon_x, x, mu, logvar):
     return BCE + KLD
 
 
+def train_one_epoch(model, optimizer, train_data):
+    train_loss = 0
+    for batch_idx, (data, _) in enumerate(train_data):
+        data = data.to(device)
+        optimizer.zero_grad()
+        recon_batch, mu, logvar = model(data)
+        loss = loss_function(recon_batch, data, mu, logvar)
+        loss.backward()
+        train_loss += loss.item()
+        optimizer.step()
+    return model, optimizer, train_loss / len(train_data.dataset)
+
+
 def train(model_assets, train_data, train_extend):
     total_epoch = int(np.round(train_extend * TOTAL_EPOCH))
     model, optimizer = model_assets
     model.train()
     for epoch in range(total_epoch):
-        train_loss = 0
-        for batch_idx, (data, _) in enumerate(train_data):
-            data = data.to(device)
-            optimizer.zero_grad()
-            recon_batch, mu, logvar = model(data)
-            loss = loss_function(recon_batch, data, mu, logvar)
-            loss.backward()
-            train_loss += loss.item()
-            optimizer.step()
-
-        print('====> Epoch: {} Average loss: {:.4f}'.format(
-            epoch, train_loss / len(train_data.dataset)))
-
+        model, optimizer, training_loss = train_one_epoch(model, optimizer, train_data)
+        print('====> Epoch: {} Average train loss: {:.4f}'.format(epoch, training_loss))
     return model, optimizer
 
 
@@ -93,6 +94,7 @@ def mnist_subset(dataset, classes_to_use):
     dataset.targets = torch.tensor(np.array(targets_to_keep))
     return dataset
 
+
 def get_transform(dataset_name):
     if dataset_name in ['mnist', 'fashion-mnist', 'kuzushiji']:
         return transforms.Compose([
@@ -107,35 +109,6 @@ def get_transform(dataset_name):
         ])
     elif dataset_name in ['cifar10', 'cifar100', 'wikiart']:
         raise NotImplementedError  # TODO
-
-
-# def get_init_data(batch_size=BATCH_SIZE, holdout_digits=None):
-#     if holdout_digits is not None:
-#         dataset = datasets.MNIST('./mnist_data/', train=True, download=True,
-#                                  transform=transforms.Compose([
-#                                      transforms.Resize(32),
-#                                      transforms.ToTensor()
-#                                  ])),
-#         dataset = mnist_subset(dataset, [d for d in range(10) if d not in holdout_digits])
-#         train_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True,
-#                                                    num_workers=NUM_WORKERS, pin_memory=True)
-#     else:
-#         train_loader = torch.utils.data.DataLoader(
-#             datasets.MNIST('./mnist_data/', train=True, download=True,
-#                            transform=transforms.Compose([
-#                                transforms.Resize(32),
-#                                transforms.ToTensor()
-#                            ])),
-#             batch_size=batch_size, shuffle=True, num_workers=NUM_WORKERS, pin_memory=True)
-#     test_loader = torch.utils.data.DataLoader(
-#         datasets.MNIST('./mnist_data/', train=False, download=True,
-#                        transform=transforms.Compose([
-#                            transforms.Resize(32),
-#                            transforms.ToTensor()
-#                        ])),
-#         batch_size=batch_size, shuffle=True, num_workers=NUM_WORKERS, pin_memory=True)
-#
-#     return train_loader, test_loader
 
 
 def get_new_model():

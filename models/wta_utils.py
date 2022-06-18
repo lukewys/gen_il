@@ -5,18 +5,15 @@ from torchvision import transforms
 from torchvision.utils import save_image
 import numpy as np
 import copy
-import train_utils
 
 import utils.data_utils
 from evaluate.linear_probe import LinearProbeModel
+from utils.iter_recon_utils import recon_till_converge
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 BATCH_SIZE = 100
 NUM_WORKERS = 8
-IMG_SIZE = 28
-SAMPLE_NUM = 1024
-SAMPLE_Z = torch.rand(SAMPLE_NUM, 1, IMG_SIZE, IMG_SIZE).to(device)
 DIFF_THRES = 1e-6
 MAX_RECON_ITER = 100
 TOTAL_EPOCH = 50  # maybe 100
@@ -43,20 +40,50 @@ def spatial_sparsity(x):
     return x * equals(x, maxes)
 
 
+def lifetime_sparsity(h, rate=0.05):
+    shp = h.shape
+    n = shp[0]
+    c = shp[1]
+    h_reshape = h.reshape((n, -1))
+    thr, ind = torch.topk(h_reshape, int(rate * n), dim=0)
+    batch_mask = 0. * h_reshape
+    batch_mask.scatter_(0, ind, 1)
+    batch_mask = batch_mask.reshape(shp)
+    return h * batch_mask
+
+
+def channel_sparsity(h, rate=0.05):
+    shp = h.shape
+    n = shp[0]
+    c = shp[1]
+    h_reshape = h.reshape((n, c, -1))
+    thr, ind = torch.topk(h_reshape, int(rate * c), dim=1)
+    batch_mask = 0. * h_reshape
+    batch_mask.scatter_(1, ind, 1)
+    batch_mask = batch_mask.reshape(shp)
+    return h * batch_mask
+
+
 class WTA(nn.Module):
     # https://github.com/iwyoo/tf_ConvWTA/blob/master/model.py
     def __init__(self, sz=64, code_sz=128,
                  lifetime_sparsity_rate=0.05,
-                 channel_sparsity_rate=1, **kwargs):
+                 channel_sparsity_rate=1, ch=1,
+                 image_size=28, sample_num=1024,
+                 out_act='sigmoid',
+                 **kwargs):
         super(WTA, self).__init__()
         self.sz = sz
         self.code_sz = code_sz
         self.lifetime_sparsity_rate = lifetime_sparsity_rate
         self.channel_sparsity_rate = channel_sparsity_rate
+        self.ch = ch
+        self.image_size = image_size
+        self.sample_z = torch.rand(sample_num, ch, image_size, image_size)
 
         self.enc = nn.Sequential(
             # input is Z, going into a convolution
-            nn.Conv2d(1, sz, 5, 1, padding=0),
+            nn.Conv2d(ch, sz, 5, 1, padding=0),
             nn.ReLU(True),
             nn.Conv2d(sz, sz, 5, 1, padding=0),
             nn.ReLU(True),
@@ -69,55 +96,50 @@ class WTA(nn.Module):
             nn.ReLU(True),
             nn.ConvTranspose2d(sz, sz, 5, 1, 0),
             nn.ReLU(True),
-            nn.ConvTranspose2d(sz, 1, 5, 1, 0),
-            nn.Sigmoid()
+            nn.ConvTranspose2d(sz, ch, 5, 1, 0),
         )
-        # self.internal_random_state = torch.Generator()
-        # self.internal_random_state.manual_seed(12345)
-        # torch.rand(5, generator=gen0)
+        if out_act == 'sigmoid':
+            self.dec = nn.Sequential(self.dec, nn.Sigmoid())
+        elif out_act == 'tanh':
+            self.dec = nn.Sequential(self.dec, nn.Tanh())
+        elif out_act == 'none':
+            pass
+        else:
+            raise ValueError('Unknown output activation function: {}'.format(out_act))
+        self.out_act = out_act
+        self.apply(weights_init)
 
     def encode(self, x):
-        h = self.enc(x.view(-1, 1, IMG_SIZE, IMG_SIZE))
+        h = self.enc(x.view(-1, self.ch, self.image_size, self.image_size))
         return h
 
     def decode(self, z):
         return self.dec(z)
 
-    def spatial_sparsity(self, h):
-        return spatial_sparsity(h)
-
-    def lifetime_sparsity(self, h, rate=0.05):
-        shp = h.shape
-        n = shp[0]
-        c = shp[1]
-        h_reshape = h.reshape((n, -1))
-        thr, ind = torch.topk(h_reshape, int(rate * n), dim=0)
-        batch_mask = 0. * h_reshape
-        batch_mask.scatter_(0, ind, 1)
-        batch_mask = batch_mask.reshape(shp)
-        return h * batch_mask
-
-    def channel_sparsity(self, h, rate=0.05):
-        shp = h.shape
-        n = shp[0]
-        c = shp[1]
-        h_reshape = h.reshape((n, c, -1))
-        thr, ind = torch.topk(h_reshape, int(rate * c), dim=1)
-        batch_mask = 0. * h_reshape
-        batch_mask.scatter_(1, ind, 1)
-        batch_mask = batch_mask.reshape(shp)
-        return h * batch_mask
-
     def forward(self, x, spatial=True, lifetime=True):
         z = self.encode(x)
         if spatial:
-            z = self.spatial_sparsity(z)
+            z = spatial_sparsity(z)
         if self.channel_sparsity_rate < 1:
-            z = self.channel_sparsity(z)
+            z = channel_sparsity(z)
         if lifetime:
-            z = self.lifetime_sparsity(z, self.lifetime_sparsity_rate)
+            z = lifetime_sparsity(z, self.lifetime_sparsity_rate)
         out = self.decode(z)
         return out
+
+
+def train_one_epoch(model, optimizer, train_data):
+    train_loss = 0
+    for batch_idx, (data, _) in enumerate(train_data):
+        data = data.to(device)
+        optimizer.zero_grad()
+        recon_batch = model(data)
+        loss = .5 * ((recon_batch - data) ** 2).sum() / data.shape[0]  # loss_function(recon_batch, data)
+        loss.backward()
+        train_loss += loss.item()
+        optimizer.step()
+
+    return model, optimizer, train_loss / len(train_data)
 
 
 def train(model_assets, train_data, train_extend):
@@ -125,18 +147,24 @@ def train(model_assets, train_data, train_extend):
     model.train()
     total_epoch = int(np.round(train_extend * TOTAL_EPOCH))
     for epoch in range(total_epoch):
-        train_loss = 0
-        for batch_idx, (data, _) in enumerate(train_data):
-            data = data.to(device)
-            optimizer.zero_grad()
-            recon_batch = model(data)
-            loss = .5 * ((recon_batch - data) ** 2).sum() / BATCH_SIZE  # loss_function(recon_batch, data)
-            loss.backward()
-            train_loss += loss.item()
-            optimizer.step()
+        model, optimizer, training_loss = train_one_epoch(model, optimizer, train_data)
+        print('====> Epoch: {} Average train loss: {:.4f}'.format(epoch, training_loss))
+    return model, optimizer
 
-        print('====> Epoch: {} Average loss: {:.4f}'.format(
-            epoch, train_loss / len(train_data)))
+
+def evaluate(model_assets, test_data):
+    model, optimizer = model_assets
+    model.eval()
+    test_loss = 0
+    with torch.no_grad():
+        for batch_idx, (data, _) in enumerate(test_data):
+            data = data.to(device)
+            recon_batch = model(data)
+            loss = .5 * ((recon_batch - data) ** 2).sum() / data.shape[0]  # loss_function(recon_batch, data)
+            test_loss += loss.item()
+
+        print('====> Average test loss: {:.4f}'.format(
+            test_loss / len(test_data)))
     return model, optimizer
 
 
@@ -148,13 +176,13 @@ def train_with_teacher(new_model_assets, old_model_assets, steps, **kwargs):
         data = gen_data(old_model_assets, BATCH_SIZE, 1).to(device)
         optimizer.zero_grad()
         recon_batch = model(data)
-        loss = .5 * ((recon_batch - data) ** 2).sum() / BATCH_SIZE
+        loss = .5 * ((recon_batch - data) ** 2).sum() / data.shape[0]
         loss.backward()
         train_loss.append(loss.item())
         optimizer.step()
         if batch_idx % 100 == 0:
             print('====> Step: {} Average loss: {:.4f}'.format(
-                batch_idx, np.mean(train_loss) / BATCH_SIZE))
+                batch_idx, np.mean(train_loss)))
 
     return model, optimizer
 
@@ -171,12 +199,16 @@ def get_transform(dataset_name):
             transforms.Resize(28),
         ])
     elif dataset_name in ['cifar10', 'cifar100', 'wikiart']:
-        raise NotImplementedError  # TODO
+        return transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        ])
+    else:
+        raise ValueError('Unknown dataset name: {}'.format(dataset_name))
 
 
 def get_new_model(**kwargs):
     model = WTA(**kwargs).to(device)
-    model.apply(weights_init)
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
     return model, optimizer
 
@@ -192,9 +224,9 @@ def get_model_assets(model_assets=None, reset_model=True, use_same_init=True, **
                 FIX_MODEL_INIT = get_new_model(**kwargs)
             return copy.deepcopy(FIX_MODEL_INIT)
         else:
-            return get_new_model()
+            return get_new_model(**kwargs)
     if model_assets is None:
-        return get_new_model()
+        return get_new_model(**kwargs)
     else:
         return model_assets
 
@@ -205,43 +237,19 @@ def get_train_data_next_iter(train_data, data_generated, add_old_dataset=False, 
                                                      num_workers=NUM_WORKERS)
 
 
-def renormalize(x):
-    # x is a tensor of shape (batch_size, IMG_SIZE, IMG_SIZE)
-    x = x.view(-1, IMG_SIZE * IMG_SIZE)
-    x = (x - torch.min(x, dim=1, keepdim=True)[0]) / (
-            torch.max(x, dim=1, keepdim=True)[0] - torch.min(x, dim=1, keepdim=True)[0])
-    return x.view(-1, IMG_SIZE, IMG_SIZE)
-
-
-def recon_till_converge(model, image_batch, thres=1e-6, return_history=False, max_iteration=100):
-    diff = 1e10
-    history = [image_batch]
-    model.eval()
-    iteration = 1
-    with torch.no_grad():
-        while diff > thres:
-            recon_batch = model(image_batch, lifetime=False, spatial=True)
-            diff = torch.max(torch.mean((image_batch - recon_batch).pow(2), dim=(1, 2)))
-            if return_history:
-                history.append(recon_batch)
-            # re-normalize image
-            image_batch = renormalize(recon_batch)
-            iteration += 1
-            if iteration > max_iteration:
-                break
-    if return_history:
-        return recon_batch, history
-    else:
-        return recon_batch
+def recon_fn(model, image_batch):
+    return model(image_batch, spatial=True, lifetime=False)
 
 
 def gen_data(model_assets, gen_batch_size, gen_num_batch, thres=DIFF_THRES, max_iteration=MAX_RECON_ITER, **kwargs):
     data_all = []
     model, optimizer = model_assets
     model.eval()
+    ch = model.ch
+    image_size = model.image_size
     for _ in range(gen_num_batch):
-        noise = torch.rand((gen_batch_size, IMG_SIZE, IMG_SIZE)).to(device)
-        sample = recon_till_converge(model, noise, thres=thres, max_iteration=max_iteration).cpu()
+        noise = torch.rand((gen_batch_size, ch, image_size, image_size)).to(device)
+        sample = recon_till_converge(model, recon_fn, noise, thres=thres, max_iteration=max_iteration).cpu()
         data_all.append(sample)
     data_all = torch.cat(data_all, dim=0)
     return data_all
@@ -249,9 +257,10 @@ def gen_data(model_assets, gen_batch_size, gen_num_batch, thres=DIFF_THRES, max_
 
 def get_kernel_visualization(model):
     code_size = model.code_sz
-    latent = torch.zeros([code_size, code_size, IMG_SIZE - 12, IMG_SIZE - 12])  # See page 167 of the PHD thesis
+    image_size = model.image_size
+    latent = torch.zeros([code_size, code_size, image_size - 12, image_size - 12])  # See page 167 of the PHD thesis
     for i in range(code_size):
-        latent[i, i, (IMG_SIZE - 12) // 2, (IMG_SIZE - 12) // 2] = 1  # Set middle point as 1
+        latent[i, i, (image_size - 12) // 2, (image_size - 12) // 2] = 1  # Set middle point as 1
     with torch.no_grad():
         latent = latent.to(device).float()
         img = model.dec(latent)
@@ -260,26 +269,32 @@ def get_kernel_visualization(model):
 
 def save_sample(model_assets, log_dir, iteration, thres=DIFF_THRES, max_iteration=MAX_RECON_ITER):
     model, optimizer = model_assets
-    sample = recon_till_converge(model, SAMPLE_Z, thres=thres, max_iteration=max_iteration).cpu()
-    save_image(sample.view(SAMPLE_NUM, 1, IMG_SIZE, IMG_SIZE), f'{log_dir}/sample_iter_{iteration}_full' + '.png',
+    model.eval()
+    sample_z = model.sample_z.to(device)
+    image_size = model.image_size
+    ch = model.ch
+    sample_num = sample_z.shape[0]
+    sample = recon_till_converge(model, recon_fn, sample_z, thres=thres, max_iteration=max_iteration).cpu()
+    save_image(sample.view(sample_num, ch, image_size, image_size), f'{log_dir}/sample_iter_{iteration}_full' + '.png',
                nrow=32)
-    save_image(sample.view(SAMPLE_NUM, 1, IMG_SIZE, IMG_SIZE)[:64], f'{log_dir}/sample_iter_{iteration}_small' + '.png',
-               nrow=8)
+    save_image(sample.view(sample_num, ch, image_size, image_size)[:64],
+               f'{log_dir}/sample_iter_{iteration}_small' + '.png', nrow=8)
     kernel_img = get_kernel_visualization(model)
-    save_image(kernel_img.view(model.code_sz, 1, IMG_SIZE, IMG_SIZE), f'{log_dir}/kernel_iter_{iteration}' + '.png',
-               nrow=8)
+    save_image(kernel_img.view(model.code_sz, ch, image_size, image_size),
+               f'{log_dir}/kernel_iter_{iteration}' + '.png', nrow=8)
 
 
 def get_linear_probe_model(model_assets):
     model, optimizer = model_assets
     model.eval()
+    image_size = model.image_size
 
     def get_latent_fn(enc_model, x):
         x = enc_model.enc(x)
         x = enc_model.spatial_sparsity(x)
         return x.reshape(x.shape[0], -1)
 
-    linear_probe_model = LinearProbeModel(model, input_dim=model.code_sz * (IMG_SIZE - 12) * (IMG_SIZE - 12),
+    linear_probe_model = LinearProbeModel(model, input_dim=model.code_sz * (image_size - 12) * (image_size - 12),
                                           output_dim=10,  # TODO: change this to the number of classes
                                           get_latent_fn=get_latent_fn)
     return linear_probe_model.to(device)

@@ -9,7 +9,6 @@ from torch.autograd import Variable
 from torchvision.utils import save_image
 import numpy as np
 import copy
-import train_utils
 
 # Device configuration
 import utils.data_utils

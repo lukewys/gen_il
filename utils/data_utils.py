@@ -57,6 +57,17 @@ def get_init_data(transform, dataset_name, batch_size):
         # https://github.com/cs-chan/ArtGAN/tree/master/WikiArt%20Dataset
         train_dataset = datasets.ImageFolder(root='./data/wikiart_data/train/', transform=transform)
         test_dataset = datasets.ImageFolder(root='./data/wikiart_data/test/', transform=transform)
+    elif dataset_name == 'celeba':
+        train_dataset = datasets.CelebA(root='./data/celeba_data/', split='train', transform=transform, download=True)
+        test_dataset = datasets.CelebA(root='./data/celeba_data/', split='test', transform=transform, download=True)
+    # TODO
+    elif dataset_name == 'dsprite':
+        train_dataset = datasets.DSprites(root='./data/dsprite_data/', transform=transform, download=True)
+        test_dataset = datasets.DSprites(root='./data/dsprite_data/', transform=transform, download=True)
+    # TODO:
+    elif dataset_name == 'mpi3d':
+        train_dataset = datasets.MPI3D(root='./data/mpi3d_data/', transform=transform, download=True)
+        test_dataset = datasets.MPI3D(root='./data/mpi3d_data/', transform=transform, download=True)
     else:
         raise Exception('Dataset not supported')
 
