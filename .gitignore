@@ -3,3 +3,7 @@
 /vae_conv.py
 /vae_pytorch_official.py
 .idea/
+.data/
+./*/logs/
+.logs/
+.gen_il_logs/
