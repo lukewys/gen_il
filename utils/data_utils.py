@@ -65,11 +65,12 @@ def get_init_data(transform, dataset_name, batch_size):
     elif dataset_name == 'dsprite':
         # TODO: split according to OOD generalization
         # (737280, 64, 64)
-        data = np.load('./data/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz')['imgs'] / 255 * 2 - 1
+        data = np.load('./data/dsprites/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz')['imgs'].astype(
+            np.float32) / 255
 
-        # (100000, 64, 64, 3) not right
+        # (100000, 1, 64, 64)
         train_data = torch.from_numpy(data[:100000]).unsqueeze(1).float()
-        # (30000, 64, 64, 3) not right
+        # (30000, 1, 64, 64)
         test_data = torch.from_numpy(data[100000:100000 + 30000]).unsqueeze(1).float()
 
         train_dataset = torch.utils.data.TensorDataset(train_data, train_data)
@@ -79,10 +80,10 @@ def get_init_data(transform, dataset_name, batch_size):
     elif dataset_name == 'mpi3d':
         # (100000, 64, 64, 3)
         train_data = torch.from_numpy(
-            np.load('./data/mpi3d_realistic_subset_train.npy').astype(np.float32) / 255 * 2 - 1)
+            np.load('./data/mpi3d/mpi3d_realistic_subset_train.npy').astype(np.float32) / 255 * 2 - 1)
         # (30000, 64, 64, 3)
         test_data = torch.from_numpy(
-            np.load('./data/mpi3d_realistic_subset_test.npy').astype(np.float32) / 255 * 2 - 1)
+            np.load('./data/mpi3d/mpi3d_realistic_subset_test.npy').astype(np.float32) / 255 * 2 - 1)
 
         train_data = train_data.permute(0, 3, 1, 2)
         test_data = test_data.permute(0, 3, 1, 2)

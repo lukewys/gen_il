@@ -128,6 +128,7 @@ class WTA(nn.Module):
             )
         elif net_type == 'vqvae':
             dim = sz
+            self.code_sz = sz
             self.enc = nn.Sequential(
                 nn.Conv2d(ch, dim, 4, 2, 1),
                 nn.BatchNorm2d(dim),
@@ -239,6 +240,45 @@ def train_with_teacher(new_model_assets, old_model_assets, steps, **kwargs):
     return model, optimizer
 
 
+def get_data_config(dataset_name):
+    if dataset_name in ['mnist', 'fashion-mnist', 'kuzushiji', 'google_draw']:
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Resize(28),
+        ])
+        config = {'image_size': 28, 'ch': 1, 'transform': transform, 'out_act': 'sigmoid'}
+        return config
+    elif dataset_name == 'omniglot':
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            utils.data_utils.flip_image_value,
+            transforms.Resize(28),
+        ])
+        config = {'image_size': 28, 'ch': 1, 'transform': transform, 'out_act': 'sigmoid'}
+        return config
+    elif dataset_name in ['cifar10', 'cifar100']:
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        ])
+        config = {'image_size': 32, 'ch': 3, 'transform': transform, 'out_act': 'tanh'}
+        return config
+    elif dataset_name == 'wikiart':
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+            transforms.Resize((64, 64)),  # TODO: decide image size
+        ])
+        config = {'image_size': 64, 'ch': 3, 'transform': transform, 'out_act': 'tanh'}
+        return config
+    elif dataset_name in ['mpi3d', 'dsprite']:
+        transform = None
+        config = {'image_size': 64, 'ch': 1, 'transform': transform, 'out_act': 'sigmoid'}
+        return config
+    else:
+        raise ValueError('Unknown dataset name: {}'.format(dataset_name))
+
+
 def get_transform(dataset_name):
     if dataset_name in ['mnist', 'fashion-mnist', 'kuzushiji']:
         return transforms.Compose([
@@ -319,9 +359,16 @@ def gen_data(model_assets, gen_batch_size, gen_num_batch, thres=DIFF_THRES, max_
 def get_kernel_visualization(model):
     code_size = model.code_sz
     image_size = model.image_size
-    latent = torch.zeros([code_size, code_size, image_size - 12, image_size - 12])  # See page 167 of the PHD thesis
-    for i in range(code_size):
-        latent[i, i, (image_size - 12) // 2, (image_size - 12) // 2] = 1  # Set middle point as 1
+    if model.net_type == 'wta':
+        latent = torch.zeros([code_size, code_size, image_size - 12, image_size - 12])  # See page 167 of the PHD thesis
+        for i in range(code_size):
+            latent[i, i, (image_size - 12) // 2, (image_size - 12) // 2] = 1  # Set middle point as 1
+    elif model.net_type == 'vqvae':
+        latent = torch.zeros([code_size, code_size, image_size // 4, image_size // 4])
+        for i in range(code_size):
+            latent[i, i, (image_size // 4) // 2, (image_size // 4) // 2] = 1  # Set middle point as 1
+    else:
+        raise ValueError('Unknown net type: {}'.format(model.net_type))
     with torch.no_grad():
         latent = latent.to(device).float()
         img = model.dec(latent)
