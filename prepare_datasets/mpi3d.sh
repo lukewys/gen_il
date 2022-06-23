@@ -1,0 +1,1 @@
+wget https://storage.googleapis.com/disentanglement_dataset/Final_Dataset/mpi3d_realistic.npz

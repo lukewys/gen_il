@@ -9,6 +9,7 @@ import copy
 import utils.data_utils
 from evaluate.linear_probe import LinearProbeModel
 from utils.iter_recon_utils import recon_till_converge
+from .vqvae_utils import ResBlock
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -70,6 +71,7 @@ class WTA(nn.Module):
                  lifetime_sparsity_rate=0.05,
                  channel_sparsity_rate=1, ch=1,
                  image_size=28, sample_num=1024,
+                 kernel_size=5, net_type='wta',
                  out_act='sigmoid',
                  **kwargs):
         super(WTA, self).__init__()
@@ -81,23 +83,44 @@ class WTA(nn.Module):
         self.image_size = image_size
         self.sample_z = torch.rand(sample_num, ch, image_size, image_size)
 
-        self.enc = nn.Sequential(
-            # input is Z, going into a convolution
-            nn.Conv2d(ch, sz, 5, 1, padding=0),
-            nn.ReLU(True),
-            nn.Conv2d(sz, sz, 5, 1, padding=0),
-            nn.ReLU(True),
-            nn.Conv2d(sz, self.code_sz, 5, 1, padding=0),
-            nn.ReLU(True),
-        )
-        self.dec = nn.Sequential(
-            # input is Z, going into a convolution
-            nn.ConvTranspose2d(self.code_sz, sz, 5, 1, 0),
-            nn.ReLU(True),
-            nn.ConvTranspose2d(sz, sz, 5, 1, 0),
-            nn.ReLU(True),
-            nn.ConvTranspose2d(sz, ch, 5, 1, 0),
-        )
+        if net_type == 'wta':
+            self.enc = nn.Sequential(
+                # input is Z, going into a convolution
+                nn.Conv2d(ch, sz, kernel_size, 1, padding=0),
+                nn.ReLU(True),
+                nn.Conv2d(sz, sz, kernel_size, 1, padding=0),
+                nn.ReLU(True),
+                nn.Conv2d(sz, self.code_sz, kernel_size, 1, padding=0),
+                nn.ReLU(True),
+            )
+            self.dec = nn.Sequential(
+                # input is Z, going into a convolution
+                nn.ConvTranspose2d(self.code_sz, sz, kernel_size, 1, 0),
+                nn.ReLU(True),
+                nn.ConvTranspose2d(sz, sz, kernel_size, 1, 0),
+                nn.ReLU(True),
+                nn.ConvTranspose2d(sz, ch, kernel_size, 1, 0),
+            )
+        elif net_type == 'vqvae':
+            dim = sz
+            self.enc = nn.Sequential(
+                nn.Conv2d(ch, dim, 4, 2, 1),
+                nn.BatchNorm2d(dim),
+                nn.ReLU(True),
+                nn.Conv2d(dim, dim, 4, 2, 1),
+                ResBlock(dim),
+                ResBlock(dim),
+            )
+
+            self.dec = nn.Sequential(
+                ResBlock(dim),
+                ResBlock(dim),
+                nn.ReLU(True),
+                nn.ConvTranspose2d(dim, dim, 4, 2, 1),
+                nn.BatchNorm2d(dim),
+                nn.ReLU(True),
+                nn.ConvTranspose2d(dim, ch, 4, 2, 1),
+            )
         if out_act == 'sigmoid':
             self.dec = nn.Sequential(self.dec, nn.Sigmoid())
         elif out_act == 'tanh':
@@ -198,11 +221,20 @@ def get_transform(dataset_name):
             utils.data_utils.flip_image_value,
             transforms.Resize(28),
         ])
-    elif dataset_name in ['cifar10', 'cifar100', 'wikiart']:
+    elif dataset_name in ['cifar10', 'cifar100']:
         return transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
         ])
+    elif dataset_name == 'wikiart':
+        return transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+            transforms.Resize((64, 64)),  # TODO
+        ])
+    elif dataset_name in ['mpi3d', 'dsprite']:
+        return None
+
     else:
         raise ValueError('Unknown dataset name: {}'.format(dataset_name))
 

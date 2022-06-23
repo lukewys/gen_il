@@ -4,6 +4,7 @@ import torch.utils.data
 from utils.train_utils import NUM_WORKERS
 from torchvision import datasets, transforms
 
+
 def get_train_data_next_iter(train_data, data_generated, add_old_dataset=False, keep_portion=1.0,
                              batch_size=128, num_workers=8):
     if add_old_dataset:
@@ -55,19 +56,48 @@ def get_init_data(transform, dataset_name, batch_size):
         test_dataset = datasets.CIFAR100(root='./data/cifar100_data/', train=False, transform=transform, download=True)
     elif dataset_name == 'wikiart':
         # https://github.com/cs-chan/ArtGAN/tree/master/WikiArt%20Dataset
-        train_dataset = datasets.ImageFolder(root='./data/wikiart_data/train/', transform=transform)
-        test_dataset = datasets.ImageFolder(root='./data/wikiart_data/test/', transform=transform)
+        train_dataset = datasets.ImageFolder(root='./data/wikiart_split/train/', transform=transform)
+        test_dataset = datasets.ImageFolder(root='./data/wikiart_split/test/', transform=transform)
     elif dataset_name == 'celeba':
         train_dataset = datasets.CelebA(root='./data/celeba_data/', split='train', transform=transform, download=True)
         test_dataset = datasets.CelebA(root='./data/celeba_data/', split='test', transform=transform, download=True)
     # TODO
     elif dataset_name == 'dsprite':
-        train_dataset = datasets.DSprites(root='./data/dsprite_data/', transform=transform, download=True)
-        test_dataset = datasets.DSprites(root='./data/dsprite_data/', transform=transform, download=True)
+        # TODO: split according to OOD generalization
+        # (737280, 64, 64)
+        data = np.load('./data/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz')['imgs'] / 255 * 2 - 1
+
+        # (100000, 64, 64, 3) not right
+        train_data = torch.from_numpy(data[:100000]).unsqueeze(1).float()
+        # (30000, 64, 64, 3) not right
+        test_data = torch.from_numpy(data[100000:100000 + 30000]).unsqueeze(1).float()
+
+        train_dataset = torch.utils.data.TensorDataset(train_data, train_data)
+        test_dataset = torch.utils.data.TensorDataset(test_data, test_data)
+
     # TODO:
     elif dataset_name == 'mpi3d':
-        train_dataset = datasets.MPI3D(root='./data/mpi3d_data/', transform=transform, download=True)
-        test_dataset = datasets.MPI3D(root='./data/mpi3d_data/', transform=transform, download=True)
+        # (100000, 64, 64, 3)
+        train_data = torch.from_numpy(
+            np.load('./data/mpi3d_realistic_subset_train.npy').astype(np.float32) / 255 * 2 - 1)
+        # (30000, 64, 64, 3)
+        test_data = torch.from_numpy(
+            np.load('./data/mpi3d_realistic_subset_test.npy').astype(np.float32) / 255 * 2 - 1)
+
+        train_data = train_data.permute(0, 3, 1, 2)
+        test_data = test_data.permute(0, 3, 1, 2)
+
+        train_dataset = torch.utils.data.TensorDataset(train_data, train_data)
+        test_dataset = torch.utils.data.TensorDataset(test_data, test_data)
+    elif dataset_name == 'google_draw.sh':
+        # (5042617, 1, 28, 28)
+        train_data = torch.from_numpy(
+            np.load('./data/google_draw/google_draw_train.npy').astype(np.float32) / 255).reshape(-1, 1, 28, 28)
+        # (504098, 1, 28, 28)
+        test_data = torch.from_numpy(
+            np.load('./data/google_draw/google_draw_test.npy').astype(np.float32) / 255).reshape(-1, 1, 28, 28)
+        train_dataset = torch.utils.data.TensorDataset(train_data, train_data)
+        test_dataset = torch.utils.data.TensorDataset(test_data, test_data)
     else:
         raise Exception('Dataset not supported')
 
