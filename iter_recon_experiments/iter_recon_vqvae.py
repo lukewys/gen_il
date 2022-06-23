@@ -22,9 +22,10 @@ if __name__ == '__main__':
     parser.add_argument('--ex_lifetime', type=str2bool, nargs='?', const=True, default=False)
     parser.add_argument('--qx_spatial', type=str2bool, nargs='?', const=True, default=False)
     parser.add_argument('--qx_lifetime', type=str2bool, nargs='?', const=True, default=False)
+    parser.add_argument('--net_type', type=str, default='vqvae')
     args = parser.parse_args()
 
-    log_dir = f'./logs/vqvae_logs/out_act_{args.out_act}_dim_{args.dim}_K_{args.K}'
+    log_dir = f'./logs/vqvae_logs/out_act_{args.out_act}_dim_{args.dim}_K_{args.K}_net_type_{args.net_type}'
     if args.ex_spatial:
         log_dir += '_ex_spatial'
     if args.ex_lifetime:
@@ -44,7 +45,8 @@ if __name__ == '__main__':
                                         ex_spatial=args.ex_spatial,
                                         ex_lifetime=args.ex_lifetime,
                                         qx_spatial=args.qx_spatial,
-                                        qx_lifetime=args.qx_lifetime)
+                                        qx_lifetime=args.qx_lifetime,
+                                        net_type=args.net_type)
 
     if args.out_act == 'sigmoid':
         transforms = transforms.Compose([

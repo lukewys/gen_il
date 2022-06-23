@@ -151,29 +151,50 @@ class ResBlock(nn.Module):
 
 class VectorQuantizedVAE(nn.Module):
     def __init__(self, input_dim=1, dim=256, K=512, out_act='sigmoid',
-                 image_size=32, sample_num=1024,
+                 image_size=32, sample_num=1024, net_type='vqvae',
                  ex_spatial=False, ex_lifetime=False, qx_spatial=False, qx_lifetime=False):
         super().__init__()
-        self.encoder = nn.Sequential(
-            nn.Conv2d(input_dim, dim, 4, 2, 1),
-            nn.BatchNorm2d(dim),
-            nn.ReLU(True),
-            nn.Conv2d(dim, dim, 4, 2, 1),
-            ResBlock(dim),
-            ResBlock(dim),
-        )
+        if net_type == 'vqvae':
+            self.encoder = nn.Sequential(
+                nn.Conv2d(input_dim, dim, 4, 2, 1),
+                nn.BatchNorm2d(dim),
+                nn.ReLU(True),
+                nn.Conv2d(dim, dim, 4, 2, 1),
+                ResBlock(dim),
+                ResBlock(dim),
+            )
 
-        self.codebook = VQEmbedding(K, dim)
+            self.decoder = nn.Sequential(
+                ResBlock(dim),
+                ResBlock(dim),
+                nn.ReLU(True),
+                nn.ConvTranspose2d(dim, dim, 4, 2, 1),
+                nn.BatchNorm2d(dim),
+                nn.ReLU(True),
+                nn.ConvTranspose2d(dim, input_dim, 4, 2, 1),
+            )
 
-        self.decoder = nn.Sequential(
-            ResBlock(dim),
-            ResBlock(dim),
-            nn.ReLU(True),
-            nn.ConvTranspose2d(dim, dim, 4, 2, 1),
-            nn.BatchNorm2d(dim),
-            nn.ReLU(True),
-            nn.ConvTranspose2d(dim, input_dim, 4, 2, 1),
-        )
+        elif net_type == 'wta':
+            ch = input_dim
+            sz = dim
+            kernel_size = 5
+            self.encoder = nn.Sequential(
+                # input is Z, going into a convolution
+                nn.Conv2d(ch, sz, kernel_size, 1, padding=0),
+                nn.ReLU(True),
+                nn.Conv2d(sz, sz, kernel_size, 1, padding=0),
+                nn.ReLU(True),
+                nn.Conv2d(sz, self.code_sz, kernel_size, 1, padding=0),
+                nn.ReLU(True),
+            )
+            self.decoder = nn.Sequential(
+                # input is Z, going into a convolution
+                nn.ConvTranspose2d(self.code_sz, sz, kernel_size, 1, 0),
+                nn.ReLU(True),
+                nn.ConvTranspose2d(sz, sz, kernel_size, 1, 0),
+                nn.ReLU(True),
+                nn.ConvTranspose2d(sz, ch, kernel_size, 1, 0),
+            )
 
         if out_act == 'sigmoid':
             self.decoder = nn.Sequential(self.decoder, nn.Sigmoid())
@@ -183,6 +204,9 @@ class VectorQuantizedVAE(nn.Module):
             pass
         else:
             raise ValueError('Unknown output activation function: {}'.format(out_act))
+
+        self.codebook = VQEmbedding(K, dim)
+
         self.out_act = out_act
         self.K = K
         self.ch = input_dim
