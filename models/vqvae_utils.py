@@ -98,7 +98,17 @@ def to_scalar(arr):
         return arr.item()
 
 
-def weights_init(m):
+def weights_init_wta(m):
+    classname = m.__class__.__name__
+    if classname.find('Conv') != -1:
+        m.weight.data.normal_(0.0, 0.001)
+        m.bias.data.normal_(0.0, 0.001)
+    elif classname.find('BatchNorm') != -1:
+        m.weight.data.normal_(1.0, 0.02)
+        m.bias.data.fill_(0)
+
+
+def weights_init_vqvae(m):
     classname = m.__class__.__name__
     if classname.find('Conv') != -1:
         try:
@@ -221,7 +231,10 @@ class VectorQuantizedVAE(nn.Module):
         if out_act == 'tanh':
             self.sample_z = self.sample_z * 2 - 1
 
-        self.apply(weights_init)
+        if net_type == 'wta':
+            self.apply(weights_init_wta)
+        elif net_type == 'vqvae':
+            self.apply(weights_init_vqvae)
 
     def encode(self, x):
         z_e_x = self.encoder(x)

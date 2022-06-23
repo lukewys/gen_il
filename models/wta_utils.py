@@ -9,7 +9,6 @@ import copy
 import utils.data_utils
 from evaluate.linear_probe import LinearProbeModel
 from utils.iter_recon_utils import recon_till_converge
-from .vqvae_utils import ResBlock
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -20,7 +19,23 @@ MAX_RECON_ITER = 100
 TOTAL_EPOCH = 50  # maybe 100
 
 
-def weights_init(m):
+class ResBlock(nn.Module):
+    def __init__(self, dim):
+        super().__init__()
+        self.block = nn.Sequential(
+            nn.ReLU(True),
+            nn.Conv2d(dim, dim, 3, 1, 1),
+            nn.BatchNorm2d(dim),
+            nn.ReLU(True),
+            nn.Conv2d(dim, dim, 1),
+            nn.BatchNorm2d(dim)
+        )
+
+    def forward(self, x):
+        return x + self.block(x)
+
+
+def weights_init_wta(m):
     classname = m.__class__.__name__
     if classname.find('Conv') != -1:
         m.weight.data.normal_(0.0, 0.001)
@@ -28,6 +43,16 @@ def weights_init(m):
     elif classname.find('BatchNorm') != -1:
         m.weight.data.normal_(1.0, 0.02)
         m.bias.data.fill_(0)
+
+
+def weights_init_vqvae(m):
+    classname = m.__class__.__name__
+    if classname.find('Conv') != -1:
+        try:
+            nn.init.xavier_uniform_(m.weight.data)
+            m.bias.data.fill_(0)
+        except AttributeError:
+            print("Skipping initialization of ", classname)
 
 
 def equals(x, y, eps=1e-8):
@@ -130,7 +155,10 @@ class WTA(nn.Module):
         else:
             raise ValueError('Unknown output activation function: {}'.format(out_act))
         self.out_act = out_act
-        self.apply(weights_init)
+        if net_type == 'wta':
+            self.apply(weights_init_wta)
+        elif net_type == 'vqvae':
+            self.apply(weights_init_vqvae)
 
     def encode(self, x):
         h = self.enc(x.view(-1, self.ch, self.image_size, self.image_size))
