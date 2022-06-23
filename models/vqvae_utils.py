@@ -188,18 +188,19 @@ class VectorQuantizedVAE(nn.Module):
             ch = input_dim
             sz = dim
             kernel_size = 5
+            code_sz = dim
             self.encoder = nn.Sequential(
                 # input is Z, going into a convolution
                 nn.Conv2d(ch, sz, kernel_size, 1, padding=0),
                 nn.ReLU(True),
                 nn.Conv2d(sz, sz, kernel_size, 1, padding=0),
                 nn.ReLU(True),
-                nn.Conv2d(sz, self.code_sz, kernel_size, 1, padding=0),
+                nn.Conv2d(sz, code_sz, kernel_size, 1, padding=0),
                 nn.ReLU(True),
             )
             self.decoder = nn.Sequential(
                 # input is Z, going into a convolution
-                nn.ConvTranspose2d(self.code_sz, sz, kernel_size, 1, 0),
+                nn.ConvTranspose2d(code_sz, sz, kernel_size, 1, 0),
                 nn.ReLU(True),
                 nn.ConvTranspose2d(sz, sz, kernel_size, 1, 0),
                 nn.ReLU(True),
@@ -235,6 +236,7 @@ class VectorQuantizedVAE(nn.Module):
             self.apply(weights_init_wta)
         elif net_type == 'vqvae':
             self.apply(weights_init_vqvae)
+        self.net_type = net_type
 
     def encode(self, x):
         z_e_x = self.encoder(x)

@@ -52,4 +52,4 @@ if __name__ == '__main__':
         model.train()
         model, optimizer, avg_loss = train_one_epoch(model, optimizer, train_data)
         print('====> Epoch: {} Average train loss: {:.4f}'.format(epoch, avg_loss))
-        save_sample((model, optimizer), log_dir, epoch)
+        save_sample((model, optimizer), log_dir, epoch, save_kernel=args.net_type == 'wta')

@@ -159,6 +159,7 @@ class WTA(nn.Module):
             self.apply(weights_init_wta)
         elif net_type == 'vqvae':
             self.apply(weights_init_vqvae)
+        self.net_type = net_type
 
     def encode(self, x):
         h = self.enc(x.view(-1, self.ch, self.image_size, self.image_size))
@@ -327,7 +328,7 @@ def get_kernel_visualization(model):
     return img
 
 
-def save_sample(model_assets, log_dir, iteration, thres=DIFF_THRES, max_iteration=MAX_RECON_ITER):
+def save_sample(model_assets, log_dir, iteration, thres=DIFF_THRES, max_iteration=MAX_RECON_ITER, save_kernel=True):
     model, optimizer = model_assets
     model.eval()
     sample_z = model.sample_z.to(device)
@@ -339,9 +340,10 @@ def save_sample(model_assets, log_dir, iteration, thres=DIFF_THRES, max_iteratio
                nrow=32)
     save_image(sample.view(sample_num, ch, image_size, image_size)[:64],
                f'{log_dir}/sample_iter_{iteration}_small' + '.png', nrow=8)
-    kernel_img = get_kernel_visualization(model)
-    save_image(kernel_img.view(model.code_sz, ch, image_size, image_size),
-               f'{log_dir}/kernel_iter_{iteration}' + '.png', nrow=8)
+    if save_kernel:
+        kernel_img = get_kernel_visualization(model)
+        save_image(kernel_img.view(model.code_sz, ch, image_size, image_size),
+                   f'{log_dir}/kernel_iter_{iteration}' + '.png', nrow=8)
 
 
 def get_linear_probe_model(model_assets):
