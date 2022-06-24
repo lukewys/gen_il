@@ -30,42 +30,49 @@ def get_train_data_next_iter(train_data, data_generated, add_old_dataset=False, 
     return train_loader_new
 
 
-def get_init_data(transform, dataset_name, batch_size):
+def get_init_data(transform, dataset_name, batch_size, data_dir='./data'):
     if dataset_name == 'mnist':
-        train_dataset = datasets.MNIST(root='./data/mnist_data/', train=True, transform=transform, download=True)
-        test_dataset = datasets.MNIST(root='./data/mnist_data/', train=False, transform=transform, download=True)
+        train_dataset = datasets.MNIST(root=f'{data_dir}/mnist_data/', train=True, transform=transform, download=True)
+        test_dataset = datasets.MNIST(root=f'{data_dir}/mnist_data/', train=False, transform=transform, download=True)
     elif dataset_name == 'fashion_mnist':
-        train_dataset = datasets.FashionMNIST(root='./data/fashion_mnist_data/', train=True, transform=transform,
+        train_dataset = datasets.FashionMNIST(root=f'{data_dir}/fashion_mnist_data/', train=True, transform=transform,
                                               download=True)
-        test_dataset = datasets.FashionMNIST(root='./data/fashion_mnist_data/', train=False, transform=transform,
+        test_dataset = datasets.FashionMNIST(root=f'{data_dir}/fashion_mnist_data/', train=False, transform=transform,
                                              download=True)
     elif dataset_name == 'omniglot':
-        train_dataset = datasets.Omniglot(root='./data/omniglot_data/', background=True, transform=transform,
+        train_dataset = datasets.Omniglot(root=f'{data_dir}/omniglot_data/', background=True, transform=transform,
                                           download=True)
-        test_dataset = datasets.Omniglot(root='./data/omniglot_data/', background=False, transform=transform,
+        test_dataset = datasets.Omniglot(root=f'{data_dir}/omniglot_data/', background=False, transform=transform,
                                          download=True)
     elif dataset_name == 'kuzushiji':
-        train_dataset = datasets.KMNIST(root='./data/kuzushiji_data/', train=True, transform=transform, download=True)
-        test_dataset = datasets.KMNIST(root='./data/kuzushiji_data/', train=False, transform=transform, download=True)
+        train_dataset = datasets.KMNIST(root=f'{data_dir}/kuzushiji_data/', train=True, transform=transform,
+                                        download=True)
+        test_dataset = datasets.KMNIST(root=f'{data_dir}/kuzushiji_data/', train=False, transform=transform,
+                                       download=True)
     # ------------
     elif dataset_name == 'cifar10':  # TODO: do color image later
-        train_dataset = datasets.CIFAR10(root='./data/cifar10_data/', train=True, transform=transform, download=True)
-        test_dataset = datasets.CIFAR10(root='./data/cifar10_data/', train=False, transform=transform, download=True)
+        train_dataset = datasets.CIFAR10(root=f'{data_dir}/cifar10_data/', train=True, transform=transform,
+                                         download=True)
+        test_dataset = datasets.CIFAR10(root=f'{data_dir}/cifar10_data/', train=False, transform=transform,
+                                        download=True)
     elif dataset_name == 'cifar100':
-        train_dataset = datasets.CIFAR100(root='./data/cifar100_data/', train=True, transform=transform, download=True)
-        test_dataset = datasets.CIFAR100(root='./data/cifar100_data/', train=False, transform=transform, download=True)
+        train_dataset = datasets.CIFAR100(root=f'{data_dir}/cifar100_data/', train=True, transform=transform,
+                                          download=True)
+        test_dataset = datasets.CIFAR100(root=f'{data_dir}/cifar100_data/', train=False, transform=transform,
+                                         download=True)
     elif dataset_name == 'wikiart':
         # https://github.com/cs-chan/ArtGAN/tree/master/WikiArt%20Dataset
-        train_dataset = datasets.ImageFolder(root='./data/wikiart_split/train/', transform=transform)
-        test_dataset = datasets.ImageFolder(root='./data/wikiart_split/test/', transform=transform)
+        train_dataset = datasets.ImageFolder(root=f'{data_dir}/wikiart_split/train/', transform=transform)
+        test_dataset = datasets.ImageFolder(root=f'{data_dir}/wikiart_split/test/', transform=transform)
     elif dataset_name == 'celeba':
-        train_dataset = datasets.CelebA(root='./data/celeba_data/', split='train', transform=transform, download=True)
-        test_dataset = datasets.CelebA(root='./data/celeba_data/', split='test', transform=transform, download=True)
-    # TODO
+        train_dataset = datasets.CelebA(root=f'{data_dir}/celeba_data/', split='train', transform=transform,
+                                        download=True)
+        test_dataset = datasets.CelebA(root=f'{data_dir}/celeba_data/', split='test', transform=transform,
+                                       download=True)
     elif dataset_name == 'dsprite':
         # TODO: split according to OOD generalization
         # (737280, 64, 64)
-        data = np.load('./data/dsprites/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz')['imgs'].astype(
+        data = np.load(f'{data_dir}/dsprites/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz')['imgs'].astype(
             np.float32) / 255
 
         # (100000, 1, 64, 64)
@@ -75,28 +82,26 @@ def get_init_data(transform, dataset_name, batch_size):
 
         train_dataset = torch.utils.data.TensorDataset(train_data, train_data)
         test_dataset = torch.utils.data.TensorDataset(test_data, test_data)
-
-    # TODO:
     elif dataset_name == 'mpi3d':
         # (100000, 64, 64, 3)
         train_data = torch.from_numpy(
-            np.load('./data/mpi3d/mpi3d_realistic_subset_train.npy').astype(np.float32) / 255 * 2 - 1)
+            np.load(f'{data_dir}/mpi3d/mpi3d_realistic_subset_train.npy').astype(np.float32) / 255 * 2 - 1)
         # (30000, 64, 64, 3)
         test_data = torch.from_numpy(
-            np.load('./data/mpi3d/mpi3d_realistic_subset_test.npy').astype(np.float32) / 255 * 2 - 1)
+            np.load(f'{data_dir}/mpi3d/mpi3d_realistic_subset_test.npy').astype(np.float32) / 255 * 2 - 1)
 
         train_data = train_data.permute(0, 3, 1, 2)
         test_data = test_data.permute(0, 3, 1, 2)
 
         train_dataset = torch.utils.data.TensorDataset(train_data, train_data)
         test_dataset = torch.utils.data.TensorDataset(test_data, test_data)
-    elif dataset_name == 'google_draw.sh':
+    elif dataset_name == 'google_draw':
         # (5042617, 1, 28, 28)
         train_data = torch.from_numpy(
-            np.load('./data/google_draw/google_draw_train.npy').astype(np.float32) / 255).reshape(-1, 1, 28, 28)
+            np.load(f'{data_dir}/google_draw/google_draw_train.npy').astype(np.float32) / 255).reshape(-1, 1, 28, 28)
         # (504098, 1, 28, 28)
         test_data = torch.from_numpy(
-            np.load('./data/google_draw/google_draw_test.npy').astype(np.float32) / 255).reshape(-1, 1, 28, 28)
+            np.load(f'{data_dir}/google_draw/google_draw_test.npy').astype(np.float32) / 255).reshape(-1, 1, 28, 28)
         train_dataset = torch.utils.data.TensorDataset(train_data, train_data)
         test_dataset = torch.utils.data.TensorDataset(test_data, test_data)
     else:

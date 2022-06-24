@@ -20,6 +20,7 @@ if __name__ == '__main__':
     parser.add_argument('--sz', type=int, default=64)
     parser.add_argument('--dataset', type=str, default='mnist')
     parser.add_argument('--net_type', type=str, default='wta')
+    parser.add_argument('--data_dir', type=str, default='./data')
 
     args = parser.parse_args()
 
@@ -34,7 +35,7 @@ if __name__ == '__main__':
     data_config = get_data_config(args.dataset)
 
     train_data, _ = get_init_data(transform=data_config['transform'], dataset_name=args.dataset,
-                                  batch_size=batch_size)
+                                  batch_size=batch_size, data_dir=args.data_dir)
 
     model_assets = get_model_assets(lifetime_sparsity_rate=args.lifetime_sparsity_rate,
                                     channel_sparsity_rate=args.channel_sparsity_rate,
