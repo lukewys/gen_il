@@ -263,7 +263,7 @@ def get_data_config(dataset_name):
         ])
         config = {'image_size': 32, 'ch': 3, 'transform': transform, 'out_act': 'tanh'}
         return config
-    elif dataset_name == 'wikiart':
+    elif dataset_name in ['wikiart', 'celeba']:
         transform = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
