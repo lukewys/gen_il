@@ -241,7 +241,7 @@ def train_with_teacher(new_model_assets, old_model_assets, steps, **kwargs):
 
 
 def get_data_config(dataset_name):
-    if dataset_name in ['mnist', 'fashion-mnist', 'kuzushiji', 'google_draw']:
+    if dataset_name in ['mnist', 'fashion_mnist', 'kuzushiji', 'google_draw']:
         transform = transforms.Compose([
             transforms.ToTensor(),
             transforms.Resize(28),

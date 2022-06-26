@@ -1,3 +1,6 @@
+from PIL import Image, ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
 import numpy as np
 import torch
 import torch.utils.data
