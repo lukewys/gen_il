@@ -7,7 +7,7 @@ from utils.data_utils import get_init_data
 
 set_seed(1234)
 
-from models.wta_utils import get_model_assets, save_sample, train_one_epoch, get_transform, get_data_config
+from models.wta_utils import get_model_assets, save_sample, train_one_epoch, get_transform, get_data_config, evaluate
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -34,8 +34,8 @@ if __name__ == '__main__':
 
     data_config = get_data_config(args.dataset)
 
-    train_data, _ = get_init_data(transform=data_config['transform'], dataset_name=args.dataset,
-                                  batch_size=batch_size, data_dir=args.data_dir)
+    train_data, test_data = get_init_data(transform=data_config['transform'], dataset_name=args.dataset,
+                                          batch_size=batch_size, data_dir=args.data_dir)
 
     model_assets = get_model_assets(lifetime_sparsity_rate=args.lifetime_sparsity_rate,
                                     channel_sparsity_rate=args.channel_sparsity_rate,
@@ -51,5 +51,6 @@ if __name__ == '__main__':
         model, optimizer = model_assets
         model.train()
         model, optimizer, avg_loss = train_one_epoch(model, optimizer, train_data)
+        evaluate(model_assets, test_data, log_dir=log_dir, iteration=epoch)
         print('====> Epoch: {} Average train loss: {:.4f}'.format(epoch, avg_loss))
         save_sample((model, optimizer), log_dir, epoch)

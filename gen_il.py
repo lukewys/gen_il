@@ -16,7 +16,7 @@ def train_model(model_assets, train_data, train_fn, iteration):
 
 def eval_model(model_assets, test_data, eval_fn, iteration):
     print(f'=======Iteration {iteration}: Eval Model=======')
-    eval_fn(model_assets, test_data)
+    eval_fn(model_assets, test_data, log_dir=log_dir, iteration=iteration)
 
 
 def train_model_with_teacher(new_model_assets, old_model_assets, train_with_teacher_fn, iteration):
@@ -95,14 +95,14 @@ if __name__ == '__main__':
 
     set_seed(args.seed)
 
-    dataset_name = args.dataset_name
+    dataset_name = 'mnist'  # args.dataset_name
     save_image_interval = args.save_image_interval
     total_iterations = args.total_iterations
     train_extend = args.train_extend  # % of training steps
     add_old_dataset = args.add_old_dataset
     gen_batch_size = 500
     gen_num_batch = args.gen_num_batch  # for matching the size of mnist train data, =12
-    model_type = args.model_type  # gan, vae, wta
+    model_type = 'wta'  # args.model_type  # gan, vae, wta
     train_with_teacher = args.train_with_teacher
     dataset_keep_portion = args.dataset_keep_portion
     reset_model = args.reset_model

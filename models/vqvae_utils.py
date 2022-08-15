@@ -315,7 +315,7 @@ def train(model_assets, train_data, train_extend):
     return model, optimizer
 
 
-def evaluate(model_assets, test_data):
+def evaluate(model_assets, test_data, **kwargs):
     model, optimizer = model_assets
     model.eval()
     with torch.no_grad():
@@ -329,7 +329,19 @@ def evaluate(model_assets, test_data):
         loss_recons /= len(test_data)
         loss_vq /= len(test_data)
 
-    print(f'Eval Recon Loss: {loss_recons.item():.4f}, VQ Loss: {loss_vq.item():.4f}')
+        print(f'Eval Recon Loss: {loss_recons.item():.4f}, VQ Loss: {loss_vq.item():.4f}')
+
+        data, _ = next(iter(test_data))
+        data = data.to(device)
+        x_tilde, z_e_x, z_q_x, indices = model(data)
+        recon = x_tilde.cpu().detach()
+        image_size = model.image_size
+        ch = model.ch
+        log_dir = kwargs['log_dir']
+        iteration = kwargs['iteration']
+        save_image(recon.view(recon.shape[0], ch, image_size, image_size)[:64],
+                   f'{log_dir}/recon_iter_{iteration}_small' + '.png', nrow=8)
+
     return model, optimizer
 
 

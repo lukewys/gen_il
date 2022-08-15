@@ -7,11 +7,9 @@ from torchvision import transforms
 
 set_seed(1234)
 
-from models.vqvae_utils import get_model_assets, train_one_epoch, \
-    save_sample
+from models.vqvae_utils import get_model_assets, train_one_epoch, save_sample, evaluate
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -60,12 +58,13 @@ if __name__ == '__main__':
             transforms.Normalize((0.5), (0.5)),
         ])
 
-    train_data, _ = get_init_data(transform=transforms, dataset_name='mnist', batch_size=batch_size)
+    train_data, test_data = get_init_data(transform=transforms, dataset_name='mnist', batch_size=batch_size)
 
     total_epoch = 30
     for epoch in range(total_epoch):
         model.train()
         model, optimizer, avg_loss_recon, avg_loss_vq, avg_perplexity = train_one_epoch(model, optimizer, train_data)
+        evaluate((model, optimizer), test_data, log_dir=log_dir, iteration=epoch)
         print(f'Epoch: {epoch}, Recon Loss: {avg_loss_recon:.4f}, '
               f'VQ Loss: {avg_loss_vq:.4f}, Perplexity: {avg_perplexity:.4f}')
         save_sample((model, optimizer), log_dir, epoch)

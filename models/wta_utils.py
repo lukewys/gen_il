@@ -205,7 +205,7 @@ def train(model_assets, train_data, train_extend):
     return model, optimizer
 
 
-def evaluate(model_assets, test_data):
+def evaluate(model_assets, test_data, **kwargs):
     model, optimizer = model_assets
     model.eval()
     test_loss = 0
@@ -218,6 +218,17 @@ def evaluate(model_assets, test_data):
 
         print('====> Average test loss: {:.4f}'.format(
             test_loss / len(test_data)))
+
+        data, _ = next(iter(test_data))
+        data = data.to(device)
+        recon = model(data)
+        recon = recon.cpu().detach()
+        image_size = model.image_size
+        ch = model.ch
+        log_dir = kwargs['log_dir']
+        iteration = kwargs['iteration']
+        save_image(recon.view(recon.shape[0], ch, image_size, image_size)[:64],
+                   f'{log_dir}/recon_iter_{iteration}_small' + '.png', nrow=8)
     return model, optimizer
 
 
