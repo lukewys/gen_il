@@ -228,7 +228,9 @@ def evaluate(model_assets, test_data, **kwargs):
         log_dir = kwargs['log_dir']
         iteration = kwargs['iteration']
         save_image(recon.view(recon.shape[0], ch, image_size, image_size)[:64],
-                   f'{log_dir}/recon_iter_{iteration}_small' + '.png', nrow=8)
+                   f'{log_dir}/recon_iter_{iteration}' + '.png', nrow=8)
+        save_image(recon.view(recon.shape[0], ch, image_size, image_size)[:64],
+                   f'{log_dir}/test_gt_iter_{iteration}' + '.png', nrow=8)
     return model, optimizer
 
 
