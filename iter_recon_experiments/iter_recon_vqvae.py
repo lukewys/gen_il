@@ -64,7 +64,7 @@ if __name__ == '__main__':
     for epoch in range(total_epoch):
         model.train()
         model, optimizer, avg_loss_recon, avg_loss_vq, avg_perplexity = train_one_epoch(model, optimizer, train_data)
-        evaluate((model, optimizer), test_data, log_dir=log_dir, iteration=epoch)
+        evaluate((model, optimizer), test_data, transforms, log_dir=log_dir, iteration=epoch)
         print(f'Epoch: {epoch}, Recon Loss: {avg_loss_recon:.4f}, '
               f'VQ Loss: {avg_loss_vq:.4f}, Perplexity: {avg_perplexity:.4f}')
-        save_sample((model, optimizer), log_dir, epoch)
+        save_sample((model, optimizer), log_dir, epoch, transforms)

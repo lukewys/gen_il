@@ -315,7 +315,7 @@ def train(model_assets, train_data, train_extend):
     return model, optimizer
 
 
-def evaluate(model_assets, test_data, **kwargs):
+def evaluate(model_assets, test_data, transform, **kwargs):
     model, optimizer = model_assets
     model.eval()
     with torch.no_grad():
@@ -339,6 +339,8 @@ def evaluate(model_assets, test_data, **kwargs):
         ch = model.ch
         log_dir = kwargs['log_dir']
         iteration = kwargs['iteration']
+        recon = utils.data_utils.denormalize(recon, transform)
+        data = utils.data_utils.denormalize(data, transform)
         save_image(recon.view(recon.shape[0], ch, image_size, image_size)[:64],
                    f'{log_dir}/recon_iter_{iteration}' + '.png', nrow=8)
         save_image(data.view(data.shape[0], ch, image_size, image_size)[:64],

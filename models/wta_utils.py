@@ -205,7 +205,7 @@ def train(model_assets, train_data, train_extend):
     return model, optimizer
 
 
-def evaluate(model_assets, test_data, **kwargs):
+def evaluate(model_assets, test_data, transform, **kwargs):
     model, optimizer = model_assets
     model.eval()
     test_loss = 0
@@ -227,6 +227,8 @@ def evaluate(model_assets, test_data, **kwargs):
         ch = model.ch
         log_dir = kwargs['log_dir']
         iteration = kwargs['iteration']
+        recon = utils.data_utils.denormalize(recon, transform)
+        data = utils.data_utils.denormalize(data, transform)
         save_image(recon.view(recon.shape[0], ch, image_size, image_size)[:64],
                    f'{log_dir}/recon_iter_{iteration}' + '.png', nrow=8)
         save_image(data.view(data.shape[0], ch, image_size, image_size)[:64],
@@ -388,7 +390,8 @@ def get_kernel_visualization(model):
     return img
 
 
-def save_sample(model_assets, log_dir, iteration, thres=DIFF_THRES, max_iteration=MAX_RECON_ITER, save_kernel=True):
+def save_sample(model_assets, log_dir, iteration, transform,
+                thres=DIFF_THRES, max_iteration=MAX_RECON_ITER, save_kernel=True):
     model, optimizer = model_assets
     model.eval()
     sample_z = model.sample_z.to(device)
@@ -396,12 +399,14 @@ def save_sample(model_assets, log_dir, iteration, thres=DIFF_THRES, max_iteratio
     ch = model.ch
     sample_num = sample_z.shape[0]
     sample = recon_till_converge(model, recon_fn, sample_z, thres=thres, max_iteration=max_iteration).cpu()
+    sample = utils.data_utils.denormalize(sample, transform)
     save_image(sample.view(sample_num, ch, image_size, image_size), f'{log_dir}/sample_iter_{iteration}_full' + '.png',
                nrow=32)
     save_image(sample.view(sample_num, ch, image_size, image_size)[:64],
                f'{log_dir}/sample_iter_{iteration}_small' + '.png', nrow=8)
     if save_kernel:
         kernel_img = get_kernel_visualization(model)
+        kernel_img = utils.data_utils.denormalize(kernel_img, transform)
         save_image(kernel_img.view(model.code_sz, ch, image_size, image_size),
                    f'{log_dir}/kernel_iter_{iteration}' + '.png', nrow=8)
 

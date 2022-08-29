@@ -16,7 +16,7 @@ def train_model(model_assets, train_data, train_fn, iteration):
 
 def eval_model(model_assets, test_data, eval_fn, iteration):
     print(f'=======Iteration {iteration}: Eval Model=======')
-    eval_fn(model_assets, test_data, log_dir=log_dir, iteration=iteration)
+    eval_fn(model_assets, test_data, transform, log_dir=log_dir, iteration=iteration)
 
 
 def train_model_with_teacher(new_model_assets, old_model_assets, train_with_teacher_fn, iteration):
@@ -36,7 +36,7 @@ def generate_data(model_assets, gen_fn, iteration):
 
 def save_generated_data(model_assets, iteration):
     # data_generated: tensor of [batch_size, *]
-    save_sample_fn(model_assets, log_dir, iteration)
+    save_sample_fn(model_assets, log_dir, iteration, transform)
 
 
 def generative_iterated_learning(model_assets, train_data, train_fn, gen_fn, total_iterations):
@@ -155,8 +155,9 @@ if __name__ == '__main__':
     get_train_data_next_iter = model_utils.get_train_data_next_iter
     save_sample_fn = model_utils.save_sample
     get_linear_probe_model_fn = model_utils.get_linear_probe_model
+    transform = model_utils.get_transform(dataset_name)
 
-    train_data, test_data = get_init_data(model_utils.get_transform(dataset_name), dataset_name, model_utils.BATCH_SIZE)
+    train_data, test_data = get_init_data(transform, dataset_name, model_utils.BATCH_SIZE)
 
     model_assets = get_model_assets_next_iter(reset_model=reset_model, use_same_init=use_same_init)
     generative_iterated_learning(model_assets, train_data, train_fn, gen_fn, total_iterations)

@@ -1,7 +1,6 @@
 import os
 import torch
 import argparse
-from torchvision import transforms
 from utils.train_utils import set_seed
 from utils.data_utils import get_init_data
 
@@ -51,6 +50,6 @@ if __name__ == '__main__':
         model, optimizer = model_assets
         model.train()
         model, optimizer, avg_loss = train_one_epoch(model, optimizer, train_data)
-        evaluate(model_assets, test_data, log_dir=log_dir, iteration=epoch)
+        evaluate(model_assets, test_data, data_config['transform'], log_dir=log_dir, iteration=epoch)
         print('====> Epoch: {} Average train loss: {:.4f}'.format(epoch, avg_loss))
-        save_sample((model, optimizer), log_dir, epoch)
+        save_sample((model, optimizer), log_dir, epoch, data_config['transform'])

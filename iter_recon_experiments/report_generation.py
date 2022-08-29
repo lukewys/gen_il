@@ -5,8 +5,8 @@ import glob
 from PIL import Image
 import numpy as np
 
-data_dir = '/Users/yusongwu/Desktop/实验记录/8.16/wta_logs'
-output_dir = '/Users/yusongwu/Desktop/实验记录/8.16/results_summary'
+data_dir = '/Users/yusongwu/Desktop/实验记录/8.25/wta_logs'
+output_dir = '/Users/yusongwu/Desktop/实验记录/8.25/results_summary'
 model_list = glob.glob(data_dir + '/*/')
 
 for model_dir in tqdm(model_list):

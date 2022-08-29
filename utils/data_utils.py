@@ -1,4 +1,5 @@
 from PIL import Image, ImageFile
+
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 import numpy as np
@@ -53,7 +54,7 @@ def get_init_data(transform, dataset_name, batch_size, data_dir='./data'):
         test_dataset = datasets.KMNIST(root=f'{data_dir}/kuzushiji_data/', train=False, transform=transform,
                                        download=True)
     # ------------
-    elif dataset_name == 'cifar10':  # TODO: do color image later
+    elif dataset_name == 'cifar10':
         train_dataset = datasets.CIFAR10(root=f'{data_dir}/cifar10_data/', train=True, transform=transform,
                                          download=True)
         test_dataset = datasets.CIFAR10(root=f'{data_dir}/cifar10_data/', train=False, transform=transform,
@@ -121,3 +122,22 @@ def get_init_data(transform, dataset_name, batch_size, data_dir='./data'):
 
 def flip_image_value(img):
     return torch.abs(img - 1)
+
+
+def denormalize(x, transform):
+    # https://github.com/pytorch/vision/issues/848
+    # x: B, C, H, W
+    mean = None
+    std = None
+    for t in transform.transforms:
+        if 'Normalize' in str(t):
+            mean = t.mean
+            std = t.std
+    if mean is None or std is None:
+        return x
+    # C, H, W, B
+    ten = x.clone().permute(1, 2, 3, 0)
+    for t, m, s in zip(ten, mean, std):
+        t.mul_(s).add_(m)
+    # B, 3, H, W
+    return torch.clamp(ten, 0, 1).permute(3, 0, 1, 2)
