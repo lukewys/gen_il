@@ -36,20 +36,19 @@ if __name__ == '__main__':
     train_data, test_data = get_init_data(transform=data_config['transform'], dataset_name=args.dataset,
                                           batch_size=batch_size, data_dir=args.data_dir)
 
-    model_assets = get_model_assets(lifetime_sparsity_rate=args.lifetime_sparsity_rate,
-                                    channel_sparsity_rate=args.channel_sparsity_rate,
-                                    code_sz=args.code_sz,
-                                    sz=args.sz,
-                                    image_size=data_config['image_size'],
-                                    ch=data_config['ch'],
-                                    out_act=data_config['out_act'],
-                                    net_type=args.net_type)
+    model, optimizer = get_model_assets(lifetime_sparsity_rate=args.lifetime_sparsity_rate,
+                                        channel_sparsity_rate=args.channel_sparsity_rate,
+                                        code_sz=args.code_sz,
+                                        sz=args.sz,
+                                        image_size=data_config['image_size'],
+                                        ch=data_config['ch'],
+                                        out_act=data_config['out_act'],
+                                        net_type=args.net_type)
 
     total_epoch = 50
     for epoch in range(total_epoch):
-        model, optimizer = model_assets
         model.train()
         model, optimizer, avg_loss = train_one_epoch(model, optimizer, train_data)
-        evaluate(model_assets, test_data, data_config['transform'], log_dir=log_dir, iteration=epoch)
         print('====> Epoch: {} Average train loss: {:.4f}'.format(epoch, avg_loss))
+        evaluate((model, optimizer), test_data, data_config['transform'], log_dir=log_dir, iteration=epoch)
         save_sample((model, optimizer), log_dir, epoch, data_config['transform'])

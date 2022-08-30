@@ -109,10 +109,7 @@ class EncoderBurgess(nn.Module):
 
         # Fully connected layers
         self.lin1 = nn.Linear(np.product(self.reshape), hidden_dim)
-        self.lin2 = nn.Linear(hidden_dim, hidden_dim)
-
-        # Fully connected layers for mean and variance
-        self.mu_logvar_gen = nn.Linear(hidden_dim, self.latent_dim * 2)
+        self.lin2 = nn.Linear(hidden_dim, latent_dim)
 
     def forward(self, x):
         batch_size = x.size(0)
@@ -129,16 +126,11 @@ class EncoderBurgess(nn.Module):
         x = torch.relu(self.lin1(x))
         x = torch.relu(self.lin2(x))
 
-        # Fully connected layer for log variance and mean
-        # Log std-dev in paper (bear in mind)
-        mu_logvar = self.mu_logvar_gen(x)
-        mu, logvar = mu_logvar.view(-1, self.latent_dim, 2).unbind(-1)
-
-        return mu, logvar
+        return x
 
 
 class DecoderBurgess(nn.Module):
-    def __init__(self, img_size=(1, 32, 32), latent_dim=10):
+    def __init__(self, img_size=(1, 32, 32), latent_dim=10, out_act='sigmoid'):
         r"""Decoder of the model proposed in [1].
         Parameters
         ----------
@@ -183,6 +175,11 @@ class DecoderBurgess(nn.Module):
         self.convT2 = nn.ConvTranspose2d(hid_channels, hid_channels, kernel_size, **cnn_kwargs)
         self.convT3 = nn.ConvTranspose2d(hid_channels, n_chan, kernel_size, **cnn_kwargs)
 
+        if out_act == 'sigmoid':
+            self.out_act = nn.Sigmoid()
+        elif out_act == 'tanh':
+            self.out_act = nn.Tanh()
+
     def forward(self, z):
         batch_size = z.size(0)
 
@@ -198,59 +195,71 @@ class DecoderBurgess(nn.Module):
         x = torch.relu(self.convT1(x))
         x = torch.relu(self.convT2(x))
         # Sigmoid activation for final conv layer
-        x = torch.sigmoid(self.convT3(x))
+        x = self.out_act(self.convT3(x))
 
         return x
 
 
-class VAE(nn.Module):
-    def __init__(self, latent_dim=20):
+class SoftmaxBridge(nn.Module):
+    def __init__(self, message_size, voc_size, tau):
+        super().__init__()
+        self.message_size = message_size
+        self.voc_size = voc_size
+        self.tau = tau
+
+    def forward(self, x):
+        logits = x.view(-1, self.message_size, self.voc_size)
+        taus = self.tau
+        return F.softmax(logits / taus, -1).view(x.shape[0], -1)
+
+
+class SEM(nn.Module):
+    def __init__(self, latent_dim=128, ch=1, image_size=32, sample_num=100, message_size=100,
+                 voc_size=8, tau=1, proj_hidden_dim=512, out_act='sigmoid'):
         """
         Class which defines model and forward pass.
         Parameters
         ----------
-        img_size : tuple of ints
-            Size of images. E.g. (1, 32, 32) or (3, 64, 64).
         """
-        super(VAE, self).__init__()
-        img_size = (1, 32, 32)
-
-        if list(img_size[1:]) not in [[32, 32], [64, 64]]:
-            raise RuntimeError(
-                "{} sized images not supported. Only (None, 32, 32) and (None, 64, 64) supported. Build your own architecture or reshape images!".format(
-                    img_size))
+        super(SEM, self).__init__()
 
         self.latent_dim = latent_dim
-        self.img_size = img_size
-        self.num_pixels = self.img_size[1] * self.img_size[2]
-        self.encoder = EncoderBurgess(img_size, self.latent_dim)
-        self.decoder = DecoderBurgess(img_size, self.latent_dim)
+        self.num_pixels = image_size * image_size
+        self.encoder = EncoderBurgess((ch, image_size, image_size), self.latent_dim)
+        self.decoder = DecoderBurgess((ch, image_size, image_size), self.latent_dim, out_act)
+
+        self.ch = ch
+        self.image_size = image_size
+        self.sample_z = torch.rand(sample_num, ch, image_size, image_size)
+
+        self.message_size = message_size
+        self.voc_size = voc_size
+        self.tau = tau
+        self.proj_hidden_dim = proj_hidden_dim
+        self.proj_output_dim = latent_dim
+
+        self.embedder = nn.Sequential(
+            nn.Linear(self.latent_dim, message_size * voc_size, bias=False),
+            nn.BatchNorm1d(message_size * voc_size)
+        )
+        self.softmax = SoftmaxBridge(message_size, voc_size, tau)
+
+        self.projector = nn.Sequential(
+            nn.Linear(message_size * voc_size, proj_hidden_dim),
+            nn.BatchNorm1d(proj_hidden_dim),
+            nn.ReLU(),
+            nn.Linear(proj_hidden_dim, self.proj_output_dim),
+        )
 
         self.reset_parameters()
 
-    def reparameterize(self, mean, logvar):
-        """
-        Samples from a normal distribution using the reparameterization trick.
-        Parameters
-        ----------
-        mean : torch.Tensor
-            Mean of the normal distribution. Shape (batch_size, latent_dim)
-        logvar : torch.Tensor
-            Diagonal log variance of the normal distribution. Shape (batch_size,
-            latent_dim)
-        """
-        std = torch.exp(0.5 * logvar)
-        eps = torch.randn_like(std)
-        return mean + std * eps
-        # if self.training:
-        #     std = torch.exp(0.5 * logvar)
-        #     eps = torch.randn_like(std)
-        #     return mean + std * eps
-        # else:
-        #     # Reconstruction mode
-        #     return mean
+    def bottleneck(self, latent):
+        emb = self.embedder(latent)
+        emb_softmax = self.softmax(emb)
+        emb_softmax_proj = self.projector(emb_softmax)
+        return emb_softmax_proj
 
-    def forward(self, x):
+    def forward(self, x, **kwargs):
         """
         Forward pass of model.
         Parameters
@@ -258,11 +267,10 @@ class VAE(nn.Module):
         x : torch.Tensor
             Batch of data. Shape (batch_size, n_chan, height, width)
         """
-        latent_dist = self.encoder(x.view(-1, 1, 32, 32))
-        latent_sample = self.reparameterize(*latent_dist)
-        reconstruct = self.decoder(latent_sample)
-        mu, logvar = latent_dist
-        return reconstruct, mu, logvar
+        latent = self.encoder(x.view(-1, 1, 32, 32))
+        latent_sem = self.bottleneck(latent)
+        reconstruct = self.decoder(latent_sem)
+        return reconstruct
 
     def encode(self, x):
         return self.encoder(x.view(-1, 1, 32, 32))
@@ -273,14 +281,54 @@ class VAE(nn.Module):
     def reset_parameters(self):
         self.apply(weights_init)
 
-    def sample_latent(self, x):
-        """
-        Returns a sample from the latent distribution.
-        Parameters
-        ----------
-        x : torch.Tensor
-            Batch of data. Shape (batch_size, n_chan, height, width)
-        """
-        latent_dist = self.encoder(x)
-        latent_sample = self.reparameterize(*latent_dist)
-        return latent_sample
+
+from torchvision import datasets, transforms
+import utils.data_utils
+
+
+def get_data_config(dataset_name):
+    if dataset_name in ['mnist', 'fashion_mnist', 'kuzushiji', 'google_draw']:
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Resize(32),
+        ])
+        config = {'image_size': 32, 'ch': 1, 'transform': transform, 'out_act': 'sigmoid'}
+        return config
+    elif dataset_name == 'omniglot':
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            utils.data_utils.flip_image_value,
+            transforms.Resize(32),
+        ])
+        config = {'image_size': 32, 'ch': 1, 'transform': transform, 'out_act': 'sigmoid'}
+        return config
+    elif dataset_name in ['cifar10', 'cifar100']:
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        ])
+        config = {'image_size': 32, 'ch': 3, 'transform': transform, 'out_act': 'tanh'}
+        return config
+    elif dataset_name in ['wikiart', 'celeba']:
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+            transforms.Resize((64, 64)),  # TODO: decide image size
+        ])
+        config = {'image_size': 64, 'ch': 3, 'transform': transform, 'out_act': 'tanh'}
+        return config
+    elif dataset_name in ['mpi3d', 'dsprite']:
+        transform = None
+        config = {'image_size': 64, 'ch': 1, 'transform': transform, 'out_act': 'sigmoid'}
+        return config
+    else:
+        raise ValueError('Unknown dataset name: {}'.format(dataset_name))
+
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
+def get_new_model(**kwargs):
+    model = SEM(**kwargs).to(device)
+    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+    return model, optimizer
