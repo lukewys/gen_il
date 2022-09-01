@@ -67,7 +67,7 @@ def weights_init(module):
 
 
 class EncoderBurgess(nn.Module):
-    def __init__(self, img_size=(1, 32, 32), latent_dim=10):
+    def __init__(self, img_size=(1, 32, 32), hid_channels=32, latent_dim=10):
         r"""Encoder of the model proposed in [1].
         Parameters
         ----------
@@ -88,7 +88,6 @@ class EncoderBurgess(nn.Module):
         super(EncoderBurgess, self).__init__()
 
         # Layer parameters
-        hid_channels = 32
         kernel_size = 4
         hidden_dim = 256
         self.latent_dim = latent_dim
@@ -130,7 +129,7 @@ class EncoderBurgess(nn.Module):
 
 
 class DecoderBurgess(nn.Module):
-    def __init__(self, img_size=(1, 32, 32), latent_dim=10, out_act='sigmoid'):
+    def __init__(self, img_size=(1, 32, 32), hid_channels=32, latent_dim=10, out_act='sigmoid'):
         r"""Decoder of the model proposed in [1].
         Parameters
         ----------
@@ -151,7 +150,6 @@ class DecoderBurgess(nn.Module):
         super(DecoderBurgess, self).__init__()
 
         # Layer parameters
-        hid_channels = 32
         kernel_size = 4
         hidden_dim = 256
         self.img_size = img_size
@@ -267,13 +265,13 @@ class SEM(nn.Module):
         x : torch.Tensor
             Batch of data. Shape (batch_size, n_chan, height, width)
         """
-        latent = self.encoder(x.view(-1, 1, 32, 32))
+        latent = self.encoder(x.view(-1, self.ch, self.image_size, self.image_size))
         latent_sem = self.bottleneck(latent)
         reconstruct = self.decoder(latent_sem)
         return reconstruct
 
     def encode(self, x):
-        return self.encoder(x.view(-1, 1, 32, 32))
+        return self.encoder(x.view(-1, self.ch, self.image_size, self.image_size))
 
     def decode(self, latent_sample):
         return self.decoder(latent_sample)

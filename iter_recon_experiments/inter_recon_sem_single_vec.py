@@ -18,12 +18,15 @@ if __name__ == '__main__':
     parser.add_argument('--tau', type=float, default=1.0)
     parser.add_argument('--proj_hidden_dim', type=int, default=512)
     parser.add_argument('--latent_dim', type=int, default=128)
+    parser.add_argument('--hid_channels', type=int, default=32)
+    parser.add_argument('--total_epoch', type=int, default=100)
 
     args = parser.parse_args()
 
     log_dir = f'./logs/sem_single_vec_logs/dataset_{args.dataset}_batch_size_{args.batch_size}_' \
               f'message_size_{args.message_size}_voc_size_{args.voc_size}_tau_{args.tau}_' \
-              f'proj_hidden_dim_{args.proj_hidden_dim}_latent_dim_{args.latent_dim}'
+              f'proj_hidden_dim_{args.proj_hidden_dim}_latent_dim_{args.latent_dim}_hid_channels_{args.hid_channels}_' \
+              f'total_epoch_{args.total_epoch}'
     os.makedirs(log_dir, exist_ok=True)
 
     batch_size = args.batch_size
@@ -38,7 +41,7 @@ if __name__ == '__main__':
                                      message_size=args.message_size, voc_size=args.voc_size, tau=args.tau,
                                      proj_hidden_dim=args.proj_hidden_dim)
 
-    total_epoch = 50
+    total_epoch = args.total_epoch
     for epoch in range(total_epoch):
         model.train()
         model, optimizer, avg_loss = train_one_epoch(model, optimizer, train_data)
