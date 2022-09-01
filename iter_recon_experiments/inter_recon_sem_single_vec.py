@@ -19,7 +19,7 @@ if __name__ == '__main__':
     parser.add_argument('--proj_hidden_dim', type=int, default=512)
     parser.add_argument('--latent_dim', type=int, default=128)
     parser.add_argument('--hid_channels', type=int, default=32)
-    parser.add_argument('--total_epoch', type=int, default=100)
+    parser.add_argument('--total_epoch', type=int, default=50)
 
     args = parser.parse_args()
 
