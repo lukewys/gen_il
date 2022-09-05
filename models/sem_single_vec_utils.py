@@ -213,7 +213,7 @@ class SoftmaxBridge(nn.Module):
 
 class SEM(nn.Module):
     def __init__(self, latent_dim=128, ch=1, image_size=32, sample_num=100, message_size=100,
-                 voc_size=8, tau=1, proj_hidden_dim=512, out_act='sigmoid'):
+                 voc_size=8, tau=1, proj_hidden_dim=512, out_act='sigmoid', hid_channels=32):
         """
         Class which defines model and forward pass.
         Parameters
@@ -222,9 +222,12 @@ class SEM(nn.Module):
         super(SEM, self).__init__()
 
         self.latent_dim = latent_dim
+        self.hid_channels = hid_channels
         self.num_pixels = image_size * image_size
-        self.encoder = EncoderBurgess((ch, image_size, image_size), self.latent_dim)
-        self.decoder = DecoderBurgess((ch, image_size, image_size), self.latent_dim, out_act)
+        self.encoder = EncoderBurgess((ch, image_size, image_size), hid_channels=hid_channels,
+                                      latent_dim=self.latent_dim)
+        self.decoder = DecoderBurgess((ch, image_size, image_size), hid_channels=hid_channels,
+                                      latent_dim=self.latent_dim, out_act=out_act)
 
         self.ch = ch
         self.image_size = image_size

@@ -39,7 +39,7 @@ if __name__ == '__main__':
     model, optimizer = get_new_model(image_size=data_config['image_size'], ch=data_config['ch'],
                                      out_act=data_config['out_act'], latent_dim=args.latent_dim,
                                      message_size=args.message_size, voc_size=args.voc_size, tau=args.tau,
-                                     proj_hidden_dim=args.proj_hidden_dim)
+                                     proj_hidden_dim=args.proj_hidden_dim, hid_channels=args.hid_channels)
 
     total_epoch = args.total_epoch
     for epoch in range(total_epoch):
