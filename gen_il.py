@@ -27,9 +27,9 @@ def train_model_with_teacher(new_model_assets, old_model_assets, train_with_teac
     return model_assets
 
 
-def generate_data(model_assets, gen_fn, iteration):
+def generate_data(model_assets, gen_fn, iteration, gen_kwargs):
     print(f'=======Iteration {iteration}: Generate Data=======')
-    data_generated = gen_fn(model_assets, gen_batch_size, gen_num_batch)
+    data_generated = gen_fn(model_assets, gen_batch_size, gen_num_batch, **gen_kwargs)
     # data_generated: tensor of [batch_size, *]
     return data_generated
 
@@ -39,13 +39,13 @@ def save_generated_data(model_assets, iteration):
     save_sample_fn(model_assets, log_dir, iteration, transform)
 
 
-def generative_iterated_learning(model_assets, train_data, train_fn, gen_fn, total_iterations):
+def generative_iterated_learning(model_assets, train_data, train_fn, gen_fn, total_iterations, gen_kwargs):
     for iteration in range(1, total_iterations + 1):
         if train_with_teacher and iteration > 1:
             model_assets = train_model_with_teacher(new_model_assets, model_assets, train_with_teacher_fn, iteration)
         else:
             model_assets = train_model(model_assets, train_data, train_fn, iteration)
-            data_generated = generate_data(model_assets, gen_fn, iteration)
+            data_generated = generate_data(model_assets, gen_fn, iteration, gen_kwargs)
             train_data = get_train_data_next_iter(train_data, data_generated, add_old_dataset=add_old_dataset,
                                                   keep_portion=dataset_keep_portion)
         eval_model(model_assets, test_data, eval_fn, iteration)
@@ -91,6 +91,7 @@ if __name__ == '__main__':
     parser.add_argument('--linear_probe', type=str2bool, nargs='?', const=True, default=False, help='linear_probe')
     parser.add_argument('--holdout_digits', type=str, default=None, metavar='S', help='holdout_digits')
     parser.add_argument('--dataset_name', type=str, default=None, metavar='S', help='mnist')
+    parser.add_argument('--gen_norm', type=str, default='none', metavar='S', help='normalization when generating data')
     args = parser.parse_args()
 
     set_seed(args.seed)
@@ -120,7 +121,8 @@ if __name__ == '__main__':
     log_dir = f'gen_il_logs/{model_type}_{dataset_name}_total_iter_{total_iterations}_train_extend_{train_extend}_' \
               f'gen_num_batch_{gen_num_batch}_add_old_dataset_{add_old_dataset}_' \
               f'train_with_teacher_{train_with_teacher}_seed_{args.seed}_reset_model_{reset_model}_' \
-              f'use_same_init_{use_same_init}_train_linear_probe_{train_linear_probe}_holdout_digits_{holdout_digits}'
+              f'use_same_init_{use_same_init}_train_linear_probe_{train_linear_probe}_' \
+              f'holdout_digits_{holdout_digits}_gen_norm_{args.gen_norm}'
 
     if args.gan_filter_portion_max and args.gan_filter_portion_min:
         log_dir += f'_gan_filter_portion_max_{args.gan_filter_portion_max}' \
@@ -129,7 +131,7 @@ if __name__ == '__main__':
         log_dir += f'_dataset_keep_portion_{args.dataset_keep_portion}'
     os.makedirs(log_dir, exist_ok=True)
 
-    gen_kwargs = {}
+    gen_kwargs = {'renorm': args.gen_norm}
 
     if model_type == 'gan':
         model_utils = gan_utils
@@ -160,4 +162,4 @@ if __name__ == '__main__':
     train_data, test_data = get_init_data(transform, dataset_name, model_utils.BATCH_SIZE)
 
     model_assets = get_model_assets_next_iter(reset_model=reset_model, use_same_init=use_same_init)
-    generative_iterated_learning(model_assets, train_data, train_fn, gen_fn, total_iterations)
+    generative_iterated_learning(model_assets, train_data, train_fn, gen_fn, total_iterations, gen_kwargs)

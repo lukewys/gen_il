@@ -365,7 +365,8 @@ def gen_data(model_assets, gen_batch_size, gen_num_batch, thres=DIFF_THRES, max_
     image_size = model.image_size
     for _ in range(gen_num_batch):
         noise = torch.rand((gen_batch_size, ch, image_size, image_size)).to(device)
-        sample = recon_till_converge(model, recon_fn, noise, thres=thres, max_iteration=max_iteration).cpu()
+        sample = recon_till_converge(model, recon_fn, noise, thres=thres, max_iteration=max_iteration,
+                                     renorm=kwargs['renorm']).cpu()
         data_all.append(sample)
     data_all = torch.cat(data_all, dim=0)
     return data_all

@@ -4,6 +4,7 @@ import torch
 
 
 def renormalize(x, neg_1_to_1=False):
+    # TODO: move the judge of the renorm type inside this function.
     """
     Re-normalize a batch of images to be between [0,1] or [-1,1].
     """
