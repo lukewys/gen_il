@@ -19,15 +19,15 @@ def eval_model(model_assets, test_data, eval_fn, iteration):
     eval_fn(model_assets, test_data, transform, log_dir=log_dir, iteration=iteration)
 
 
-def train_model_with_teacher(new_model_assets, old_model_assets, train_with_teacher_fn, iteration):
+def train_model_with_teacher(new_model_assets, old_model_assets, train_with_teacher_fn, iteration, **gen_kwargs):
     print(f'=======Iteration {iteration}: Train Model With Teacher=======')
     total_steps = 3000
     total_steps = int(np.round(train_extend * total_steps))
-    model_assets = train_with_teacher_fn(new_model_assets, old_model_assets, total_steps)
+    model_assets = train_with_teacher_fn(new_model_assets, old_model_assets, total_steps, **gen_kwargs)
     return model_assets
 
 
-def generate_data(model_assets, gen_fn, iteration, gen_kwargs):
+def generate_data(model_assets, gen_fn, iteration, **gen_kwargs):
     print(f'=======Iteration {iteration}: Generate Data=======')
     data_generated = gen_fn(model_assets, gen_batch_size, gen_num_batch, **gen_kwargs)
     # data_generated: tensor of [batch_size, *]
@@ -42,17 +42,15 @@ def save_generated_data(model_assets, iteration):
 def generative_iterated_learning(model_assets, train_data, train_fn, gen_fn, total_iterations, gen_kwargs):
     for iteration in range(1, total_iterations + 1):
         if train_with_teacher and iteration > 1:
-            model_assets = train_model_with_teacher(new_model_assets, model_assets, train_with_teacher_fn, iteration)
+            model_assets = train_model_with_teacher(new_model_assets, model_assets, train_with_teacher_fn, iteration,
+                                                    **gen_kwargs)
         else:
             model_assets = train_model(model_assets, train_data, train_fn, iteration)
-            data_generated = generate_data(model_assets, gen_fn, iteration, gen_kwargs)
+            data_generated = generate_data(model_assets, gen_fn, iteration, **gen_kwargs)
             train_data = get_train_data_next_iter(train_data, data_generated, add_old_dataset=add_old_dataset,
                                                   keep_portion=dataset_keep_portion)
         eval_model(model_assets, test_data, eval_fn, iteration)
 
-        print(f'=======Iteration {iteration}: Get New Model=======')
-        new_model_assets = get_model_assets_next_iter(model_assets=model_assets, reset_model=reset_model,
-                                                      use_same_init=use_same_init)
         if iteration % save_image_interval == 0:
             save_generated_data(model_assets, iteration)
 
@@ -62,10 +60,16 @@ def generative_iterated_learning(model_assets, train_data, train_fn, gen_fn, tot
             with open(os.path.join(log_dir, 'max_acc.txt'), 'a') as f:
                 f.write(f'Iter {iteration}: {max_acc}\n')
 
+        print(f'=======Iteration {iteration}: Get New Model=======')
+        new_model_assets = get_model_assets_next_iter(model_assets=model_assets, reset_model=reset_model,
+                                                      use_same_init=use_same_init)
+        if not train_with_teacher:
+            model_assets = new_model_assets
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Gen IL')
-    parser.add_argument('--model_type', type=str, default='vae', metavar='N',
+    parser.add_argument('--model_type', type=str, default='wta', metavar='N',
                         help='model_type')
     parser.add_argument('--save_image_interval', type=int, default=1, metavar='N',
                         help='save_image_interval')
@@ -75,10 +79,10 @@ if __name__ == '__main__':
                         default=False, help='add old dataset')
     parser.add_argument('--train_extend', type=float, default=1.0, metavar='S',
                         help='train_extend')
-    parser.add_argument('--gen_num_batch', type=int, default=12, metavar='N',
+    parser.add_argument('--gen_num_batch', type=int, default=120, metavar='N',
                         help='gen_num_batch')
     parser.add_argument('--train_with_teacher', type=str2bool, nargs='?', const=True,
-                        default=False, help='train_with_teacher')
+                        default=True, help='train_with_teacher')
     parser.add_argument('--gan_filter_portion_max', type=float, default=None, metavar='S',
                         help='gan_filter_portion_max')
     parser.add_argument('--gan_filter_portion_min', type=float, default=None, metavar='S',
@@ -90,20 +94,20 @@ if __name__ == '__main__':
     parser.add_argument('--use_same_init', type=str2bool, nargs='?', const=True, default=True, help='use_same_init')
     parser.add_argument('--linear_probe', type=str2bool, nargs='?', const=True, default=False, help='linear_probe')
     parser.add_argument('--holdout_digits', type=str, default=None, metavar='S', help='holdout_digits')
-    parser.add_argument('--dataset_name', type=str, default=None, metavar='S', help='mnist')
+    parser.add_argument('--dataset_name', type=str, default='mnist', metavar='S', help='dataset name')
     parser.add_argument('--gen_norm', type=str, default='none', metavar='S', help='normalization when generating data')
     args = parser.parse_args()
 
     set_seed(args.seed)
 
-    dataset_name = 'mnist'  # args.dataset_name
+    dataset_name = args.dataset_name
     save_image_interval = args.save_image_interval
     total_iterations = args.total_iterations
     train_extend = args.train_extend  # % of training steps
     add_old_dataset = args.add_old_dataset
     gen_batch_size = 500
-    gen_num_batch = args.gen_num_batch  # for matching the size of mnist train data, =12
-    model_type = 'wta'  # args.model_type  # gan, vae, wta
+    gen_num_batch = args.gen_num_batch  # for matching the size of mnist train data, =120
+    model_type = args.model_type  # gan, vae, wta
     train_with_teacher = args.train_with_teacher
     dataset_keep_portion = args.dataset_keep_portion
     reset_model = args.reset_model

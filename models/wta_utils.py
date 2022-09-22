@@ -241,7 +241,7 @@ def train_with_teacher(new_model_assets, old_model_assets, steps, **kwargs):
     model.train()
     train_loss = []
     for batch_idx in range(steps):
-        data = gen_data(old_model_assets, BATCH_SIZE, 1).to(device)
+        data = gen_data(old_model_assets, BATCH_SIZE, 1, **kwargs).to(device)
         optimizer.zero_grad()
         recon_batch = model(data)
         loss = .5 * ((recon_batch - data) ** 2).sum() / data.shape[0]
@@ -335,9 +335,9 @@ FIX_MODEL_INIT = None
 def get_model_assets(model_assets=None, reset_model=True, use_same_init=True, **kwargs):
     global FIX_MODEL_INIT
     if reset_model:
-        if use_same_init and FIX_MODEL_INIT is not None:
-            if FIX_MODEL_INIT is None:
-                FIX_MODEL_INIT = get_new_model(**kwargs)
+        if FIX_MODEL_INIT is None and use_same_init:
+            FIX_MODEL_INIT = get_new_model(**kwargs)
+        if use_same_init:
             return copy.deepcopy(FIX_MODEL_INIT)
         else:
             return get_new_model(**kwargs)

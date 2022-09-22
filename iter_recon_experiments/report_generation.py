@@ -5,9 +5,9 @@ import glob
 from PIL import Image
 import numpy as np
 
-data_dir = '/Users/yusongwu/Desktop/实验记录/8.29/'
-output_dir = '/Users/yusongwu/Desktop/实验记录/8.29/results_summary'
-model_list = glob.glob(data_dir)# + '/*/')
+data_dir = '/Users/yusongwu/Desktop/实验记录/8.31'
+output_dir = '/Users/yusongwu/Desktop/实验记录/8.31/results_summary'
+model_list = glob.glob(data_dir + '/*/')
 
 for model_dir in tqdm(model_list):
     os.makedirs(os.path.join(output_dir, os.path.basename(os.path.dirname(model_dir))), exist_ok=True)
