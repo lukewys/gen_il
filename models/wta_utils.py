@@ -111,11 +111,11 @@ class WTA(nn.Module):
         if net_type == 'wta':
             self.enc = nn.Sequential(
                 # input is Z, going into a convolution
-                nn.Conv2d(ch, sz, kernel_size, 1, padding=0),
+                nn.Conv2d(ch, sz, kernel_size, 1, 0),
                 nn.ReLU(True),
-                nn.Conv2d(sz, sz, kernel_size, 1, padding=0),
+                nn.Conv2d(sz, sz, kernel_size, 1, 0),
                 nn.ReLU(True),
-                nn.Conv2d(sz, self.code_sz, kernel_size, 1, padding=0),
+                nn.Conv2d(sz, self.code_sz, kernel_size, 1, 0),
                 nn.ReLU(True),
             )
             self.dec = nn.Sequential(
@@ -392,14 +392,15 @@ def get_kernel_visualization(model):
 
 
 def save_sample(model_assets, log_dir, iteration, transform,
-                thres=DIFF_THRES, max_iteration=MAX_RECON_ITER, save_kernel=True):
+                thres=DIFF_THRES, max_iteration=MAX_RECON_ITER, save_kernel=True, **gen_kwargs):
     model, optimizer = model_assets
     model.eval()
     sample_z = model.sample_z.to(device)
     image_size = model.image_size
     ch = model.ch
     sample_num = sample_z.shape[0]
-    sample = recon_till_converge(model, recon_fn, sample_z, thres=thres, max_iteration=max_iteration).cpu()
+    sample = recon_till_converge(model, recon_fn, sample_z, thres=thres, max_iteration=max_iteration,
+                                 renorm=gen_kwargs['renorm']).cpu()
     sample = utils.data_utils.denormalize(sample, transform)
     save_image(sample.view(sample_num, ch, image_size, image_size), f'{log_dir}/sample_iter_{iteration}_full' + '.png',
                nrow=32)

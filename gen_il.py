@@ -34,9 +34,9 @@ def generate_data(model_assets, gen_fn, iteration, **gen_kwargs):
     return data_generated
 
 
-def save_generated_data(model_assets, iteration):
+def save_generated_data(model_assets, iteration, **gen_kwargs):
     # data_generated: tensor of [batch_size, *]
-    save_sample_fn(model_assets, log_dir, iteration, transform)
+    save_sample_fn(model_assets, log_dir, iteration, transform, **gen_kwargs)
 
 
 def generative_iterated_learning(model_assets, train_data, train_fn, gen_fn, total_iterations, gen_kwargs):
@@ -52,7 +52,7 @@ def generative_iterated_learning(model_assets, train_data, train_fn, gen_fn, tot
         eval_model(model_assets, test_data, eval_fn, iteration)
 
         if iteration % save_image_interval == 0:
-            save_generated_data(model_assets, iteration)
+            save_generated_data(model_assets, iteration, **gen_kwargs)
 
         if train_linear_probe:
             linear_probe_model = get_linear_probe_model_fn(model_assets)
