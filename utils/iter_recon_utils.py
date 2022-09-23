@@ -36,7 +36,7 @@ def recon_till_converge(model, recon_fn, image_batch,
     with torch.no_grad():
         while diff > thres:
             recon_batch = recon_fn(model, image_batch)
-            diff = torch.max(torch.mean((image_batch - recon_batch).pow(2), dim=(1, 2)))
+            diff = torch.max(torch.mean((image_batch - recon_batch).pow(2), dim=(2, 3)))
             if return_history:
                 history.append(recon_batch)
             # re-normalize image
@@ -44,7 +44,7 @@ def recon_till_converge(model, recon_fn, image_batch,
                 image_batch = renormalize(recon_batch)
             elif renorm == '-1_to_1':
                 image_batch = renormalize(recon_batch, neg_1_to_1=True)
-            elif renorm == 'none':
+            elif renorm == 'none' or renorm is None:
                 image_batch = recon_batch
             else:
                 raise ValueError(f'Unknown renorm type: {renorm}')

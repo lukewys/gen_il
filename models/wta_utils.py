@@ -14,7 +14,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 BATCH_SIZE = 100
 NUM_WORKERS = 8
-DIFF_THRES = 1e-6
+DIFF_THRES = 1e-3
 MAX_RECON_ITER = 100
 TOTAL_EPOCH = 50  # maybe 100
 
@@ -92,7 +92,7 @@ def channel_sparsity(h, rate=0.05):
 
 class WTA(nn.Module):
     # https://github.com/iwyoo/tf_ConvWTA/blob/master/model.py
-    def __init__(self, sz=64, code_sz=128,
+    def __init__(self, sz=128, code_sz=128,
                  lifetime_sparsity_rate=0.05,
                  channel_sparsity_rate=1, ch=1,
                  image_size=28, sample_num=1024,

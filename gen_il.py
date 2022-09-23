@@ -82,7 +82,7 @@ if __name__ == '__main__':
     parser.add_argument('--gen_num_batch', type=int, default=120, metavar='N',
                         help='gen_num_batch')
     parser.add_argument('--train_with_teacher', type=str2bool, nargs='?', const=True,
-                        default=True, help='train_with_teacher')
+                        default=False, help='train_with_teacher')
     parser.add_argument('--gan_filter_portion_max', type=float, default=None, metavar='S',
                         help='gan_filter_portion_max')
     parser.add_argument('--gan_filter_portion_min', type=float, default=None, metavar='S',
@@ -96,7 +96,10 @@ if __name__ == '__main__':
     parser.add_argument('--holdout_digits', type=str, default=None, metavar='S', help='holdout_digits')
     parser.add_argument('--dataset_name', type=str, default='mnist', metavar='S', help='dataset name')
     parser.add_argument('--gen_norm', type=str, default='none', metavar='S', help='normalization when generating data')
+    parser.add_argument('--model_kwargs', type=str, default='{}', metavar='N', help='model kwargs')
     args = parser.parse_args()
+
+    model_kwargs = eval(args.model_kwargs)
 
     set_seed(args.seed)
 
@@ -133,6 +136,9 @@ if __name__ == '__main__':
                    f'_gan_filter_portion_min_{args.gan_filter_portion_min}'
     if args.dataset_keep_portion < 1.0:
         log_dir += f'_dataset_keep_portion_{args.dataset_keep_portion}'
+
+    if model_kwargs:
+        log_dir += f'_model_kwargs_{args.model_kwargs}'
     os.makedirs(log_dir, exist_ok=True)
 
     gen_kwargs = {'renorm': args.gen_norm}
@@ -165,5 +171,5 @@ if __name__ == '__main__':
 
     train_data, test_data = get_init_data(transform, dataset_name, model_utils.BATCH_SIZE)
 
-    model_assets = get_model_assets_next_iter(reset_model=reset_model, use_same_init=use_same_init)
+    model_assets = get_model_assets_next_iter(reset_model=reset_model, use_same_init=use_same_init, **model_kwargs)
     generative_iterated_learning(model_assets, train_data, train_fn, gen_fn, total_iterations, gen_kwargs)
