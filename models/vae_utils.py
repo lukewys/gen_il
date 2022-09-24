@@ -340,6 +340,10 @@ def train(model_assets, train_data, train_extend):
     return model, optimizer
 
 
+def evaluate(model_assets, test_data, transform, **kwargs):
+    return  # TODO: implement this
+
+
 def train_with_teacher(new_model_assets, old_model_assets, steps, **kwargs):
     model, optimizer = new_model_assets
     model.train()
@@ -404,9 +408,9 @@ FIX_MODEL_INIT = None
 def get_model_assets(model_assets=None, reset_model=True, use_same_init=True):
     global FIX_MODEL_INIT
     if reset_model:
-        if use_same_init and FIX_MODEL_INIT is not None:
-            if FIX_MODEL_INIT is None:
-                FIX_MODEL_INIT = get_new_model()
+        if use_same_init and FIX_MODEL_INIT is None:
+            FIX_MODEL_INIT = get_new_model()
+        if use_same_init:
             return copy.deepcopy(FIX_MODEL_INIT)
         else:
             return get_new_model()
@@ -435,10 +439,11 @@ def gen_data(model_assets, gen_batch_size, gen_num_batch, **kwargs):
     return data_all
 
 
-def save_sample(model_assets, log_dir, iteration):
+def save_sample(model_assets, log_dir, iteration, transform, **kwargs):
     model, optimizer = model_assets
     with torch.no_grad():
         sample = model.decode(SAMPLE_Z).cpu()
+    sample = utils.data_utils.denormalize(sample, transform)
     save_image(sample.view(SAMPLE_NUM, 1, 32, 32), f'{log_dir}/sample_iter_{iteration}' + '.png')
 
 

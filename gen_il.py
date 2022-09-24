@@ -150,7 +150,7 @@ if __name__ == '__main__':
             'gan_filter_portion_max': args.gan_filter_portion_max,
             'gan_filter_portion_min': args.gan_filter_portion_min,
         }
-    if model_type == 'vae':
+    elif model_type == 'vae':
         model_utils = vae_utils
     elif model_type == 'wta':
         model_utils = wta_utils
