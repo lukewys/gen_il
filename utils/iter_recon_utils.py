@@ -14,6 +14,7 @@ def renormalize(x, neg_1_to_1=False):
     x = x.view(-1, ch, w * h)
     x = (x - torch.min(x, dim=-1, keepdim=True)[0]) / (
             torch.max(x, dim=-1, keepdim=True)[0] - torch.min(x, dim=-1, keepdim=True)[0])
+    # TODO: add save divide (divide 1e-5 if the denominator is smaller than 1e-5)
 
     # normalize to -1, 1
     if neg_1_to_1:
@@ -44,6 +45,11 @@ def recon_till_converge(model, recon_fn, image_batch,
                 image_batch = renormalize(recon_batch)
             elif renorm == '-1_to_1':
                 image_batch = renormalize(recon_batch, neg_1_to_1=True)
+            elif renorm == 'clamp_0_to_1':
+                image_batch = torch.clamp(recon_batch, 0, 1)
+            elif renorm == 'clamp_0_renorm_1':
+                image_batch = torch.clamp(recon_batch, 0, None)
+                image_batch = renormalize(image_batch)
             elif renorm == 'none' or renorm is None:
                 image_batch = recon_batch
             else:
@@ -51,6 +57,7 @@ def recon_till_converge(model, recon_fn, image_batch,
             iteration += 1
             if iteration > max_iteration:
                 break
+    # print(f'Converged in {iteration} iterations.')
     if return_history:
         return image_batch, history
     else:
