@@ -1,6 +1,7 @@
 import os
 import argparse
 import numpy as np
+import json
 
 from utils.train_utils import str2bool, set_seed
 from utils.data_utils import get_init_data
@@ -43,12 +44,13 @@ def generative_iterated_learning(model_assets, train_data, train_fn, gen_fn, tot
     for iteration in range(1, total_iterations + 1):
         if train_with_teacher and iteration > 1:
             model_assets = train_model_with_teacher(new_model_assets, model_assets, train_with_teacher_fn, iteration,
+                                                    batch_size=batch_size,
                                                     **gen_kwargs)
         else:
             model_assets = train_model(model_assets, train_data, train_fn, iteration)
             data_generated = generate_data(model_assets, gen_fn, iteration, **gen_kwargs)
             train_data = get_train_data_next_iter(train_data, data_generated, add_old_dataset=add_old_dataset,
-                                                  keep_portion=dataset_keep_portion)
+                                                  keep_portion=dataset_keep_portion, batch_size=batch_size)
         eval_model(model_assets, test_data, eval_fn, iteration)
 
         if iteration % save_image_interval == 0:
@@ -97,12 +99,17 @@ if __name__ == '__main__':
     parser.add_argument('--dataset_name', type=str, default='mnist', metavar='S', help='dataset name')
     parser.add_argument('--gen_norm', type=str, default='none', metavar='S', help='normalization when generating data')
     parser.add_argument('--model_kwargs', type=str, default='{}', metavar='N', help='model kwargs')
+    parser.add_argument('--no_renorm_last_iter', type=str2bool, nargs='?', const=True, default=False,
+                        help='no_renorm_last_iter')
+    parser.add_argument('--name', type=str, default='experiment', metavar='N', help='name of the log dir')
+    parser.add_argument('--batch_size', type=int, default=100, metavar='S', help='batch_size')
     args = parser.parse_args()
 
     model_kwargs = eval(args.model_kwargs)
 
     set_seed(args.seed)
 
+    batch_size = args.batch_size
     dataset_name = args.dataset_name
     save_image_interval = args.save_image_interval
     total_iterations = args.total_iterations
@@ -125,23 +132,14 @@ if __name__ == '__main__':
     # print all the args and their values
     print('\n'.join(f'{k}: {v}' for k, v in sorted(vars(args).items())))
 
-    log_dir = f'gen_il_logs/{model_type}_{dataset_name}_total_iter_{total_iterations}_train_extend_{train_extend}_' \
-              f'gen_num_batch_{gen_num_batch}_add_old_dataset_{add_old_dataset}_' \
-              f'train_with_teacher_{train_with_teacher}_seed_{args.seed}_reset_model_{reset_model}_' \
-              f'use_same_init_{use_same_init}_train_linear_probe_{train_linear_probe}_' \
-              f'holdout_digits_{holdout_digits}_gen_norm_{args.gen_norm}'
-
-    if args.gan_filter_portion_max and args.gan_filter_portion_min:
-        log_dir += f'_gan_filter_portion_max_{args.gan_filter_portion_max}' \
-                   f'_gan_filter_portion_min_{args.gan_filter_portion_min}'
-    if args.dataset_keep_portion < 1.0:
-        log_dir += f'_dataset_keep_portion_{args.dataset_keep_portion}'
-
-    if model_kwargs:
-        log_dir += f'_model_kwargs_{args.model_kwargs}'
+    log_dir = f'gen_il_logs/{args.name}'
     os.makedirs(log_dir, exist_ok=True)
 
-    gen_kwargs = {'renorm': args.gen_norm}
+    # save args to log_dir
+    with open(os.path.join(log_dir, 'args.json'), 'w') as f:
+        json.dump(vars(args), f)
+
+    gen_kwargs = {'renorm': args.gen_norm, 'no_renorm_last_iter': args.no_renorm_last_iter}
 
     if model_type == 'gan':
         model_utils = gan_utils
@@ -169,7 +167,7 @@ if __name__ == '__main__':
     get_linear_probe_model_fn = model_utils.get_linear_probe_model
     transform = model_utils.get_transform(dataset_name)
 
-    train_data, test_data = get_init_data(transform, dataset_name, model_utils.BATCH_SIZE)
+    train_data, test_data = get_init_data(transform, dataset_name, batch_size=batch_size)
 
     model_assets = get_model_assets_next_iter(reset_model=reset_model, use_same_init=use_same_init, **model_kwargs)
     generative_iterated_learning(model_assets, train_data, train_fn, gen_fn, total_iterations, gen_kwargs)

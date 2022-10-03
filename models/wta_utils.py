@@ -19,6 +19,9 @@ MAX_RECON_ITER = 100
 TOTAL_EPOCH = 50  # maybe 100
 
 
+# TODO: make these parameters as properties in a class
+
+
 class ResBlock(nn.Module):
     def __init__(self, dim):
         super().__init__()
@@ -67,6 +70,8 @@ def spatial_sparsity(x):
 
 
 def lifetime_sparsity(h, rate=0.05):
+    if rate == 1:
+        return h
     shp = h.shape
     n = shp[0]
     c = shp[1]
@@ -79,6 +84,8 @@ def lifetime_sparsity(h, rate=0.05):
 
 
 def channel_sparsity(h, rate=0.05):
+    if rate == 1:
+        return h
     shp = h.shape
     n = shp[0]
     c = shp[1]
@@ -174,9 +181,9 @@ class WTA(nn.Module):
         if spatial:
             z = spatial_sparsity(z)
         if self.channel_sparsity_rate < 1:
-            z = channel_sparsity(z)
+            z = channel_sparsity(z, rate=self.channel_sparsity_rate)
         if lifetime:
-            z = lifetime_sparsity(z, self.lifetime_sparsity_rate)
+            z = lifetime_sparsity(z, rate=self.lifetime_sparsity_rate)
         out = self.decode(z)
         return out
 
@@ -236,12 +243,12 @@ def evaluate(model_assets, test_data, transform, **kwargs):
     return model, optimizer
 
 
-def train_with_teacher(new_model_assets, old_model_assets, steps, **kwargs):
+def train_with_teacher(new_model_assets, old_model_assets, steps, batch_size=BATCH_SIZE, **kwargs):
     model, optimizer = new_model_assets
     model.train()
     train_loss = []
     for batch_idx in range(steps):
-        data = gen_data(old_model_assets, BATCH_SIZE, 1, **kwargs).to(device)
+        data = gen_data(old_model_assets, batch_size, 1, **kwargs).to(device)
         optimizer.zero_grad()
         recon_batch = model(data)
         loss = .5 * ((recon_batch - data) ** 2).sum() / data.shape[0]
@@ -347,9 +354,10 @@ def get_model_assets(model_assets=None, reset_model=True, use_same_init=True, **
         return model_assets
 
 
-def get_train_data_next_iter(train_data, data_generated, add_old_dataset=False, keep_portion=1.0):
+def get_train_data_next_iter(train_data, data_generated, add_old_dataset=False, keep_portion=1.0,
+                             batch_size=BATCH_SIZE):
     return utils.data_utils.get_train_data_next_iter(train_data, data_generated, add_old_dataset=add_old_dataset,
-                                                     keep_portion=keep_portion, batch_size=BATCH_SIZE,
+                                                     keep_portion=keep_portion, batch_size=batch_size,
                                                      num_workers=NUM_WORKERS)
 
 
@@ -366,7 +374,7 @@ def gen_data(model_assets, gen_batch_size, gen_num_batch, thres=DIFF_THRES, max_
     for _ in range(gen_num_batch):
         noise = torch.rand((gen_batch_size, ch, image_size, image_size)).to(device)
         sample = recon_till_converge(model, recon_fn, noise, thres=thres, max_iteration=max_iteration,
-                                     renorm=kwargs['renorm']).cpu()
+                                     renorm=kwargs['renorm'], no_renorm_last_iter=kwargs['no_renorm_last_iter']).cpu()
         data_all.append(sample)
     data_all = torch.cat(data_all, dim=0)
     return data_all
@@ -400,12 +408,16 @@ def save_sample(model_assets, log_dir, iteration, transform,
     ch = model.ch
     sample_num = sample_z.shape[0]
     sample = recon_till_converge(model, recon_fn, sample_z, thres=thres, max_iteration=max_iteration,
-                                 renorm=gen_kwargs['renorm']).cpu()
+                                 renorm=gen_kwargs['renorm'],
+                                 no_renorm_last_iter=gen_kwargs['no_renorm_last_iter']).cpu()
     sample = utils.data_utils.denormalize(sample, transform)
     save_image(sample.view(sample_num, ch, image_size, image_size), f'{log_dir}/sample_iter_{iteration}_full' + '.png',
                nrow=32)
     save_image(sample.view(sample_num, ch, image_size, image_size)[:64],
                f'{log_dir}/sample_iter_{iteration}_small' + '.png', nrow=8)
+    # save image as numpy array
+    np.save(f'{log_dir}/sample_iter_{iteration}_full' + '.npy',
+            sample.view(sample_num, ch, image_size, image_size).numpy())
     if save_kernel:
         kernel_img = get_kernel_visualization(model)
         kernel_img = utils.data_utils.denormalize(kernel_img, transform)

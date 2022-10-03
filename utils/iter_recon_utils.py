@@ -24,7 +24,8 @@ def renormalize(x, neg_1_to_1=False):
 
 def recon_till_converge(model, recon_fn, image_batch,
                         thres=1e-6, return_history=False,
-                        max_iteration=100, renorm='none'):
+                        max_iteration=100, renorm='none',
+                        no_renorm_last_iter=False):
     """
     Reconstructs a batch of images until the reconstruction error is below a threshold.
     image_batch: [batch, ch, w, h]
@@ -58,6 +59,8 @@ def recon_till_converge(model, recon_fn, image_batch,
             if iteration > max_iteration:
                 break
     # print(f'Converged in {iteration} iterations.')
+    if no_renorm_last_iter:
+        image_batch = recon_batch
     if return_history:
         return image_batch, history
     else:
