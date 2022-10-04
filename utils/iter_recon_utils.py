@@ -51,7 +51,7 @@ def recon_till_converge(model, recon_fn, image_batch,
             elif renorm == 'clamp_0_renorm_1':
                 image_batch = torch.clamp(recon_batch, 0, None)
                 image_batch = renormalize(image_batch)
-            elif renorm == 'none' or renorm is None:
+            elif renorm == 'none' or renorm is None or renorm == 'clamp_0_renorm_1_end':
                 image_batch = recon_batch
             else:
                 raise ValueError(f'Unknown renorm type: {renorm}')
@@ -61,6 +61,9 @@ def recon_till_converge(model, recon_fn, image_batch,
     # print(f'Converged in {iteration} iterations.')
     if no_renorm_last_iter:
         image_batch = recon_batch
+    elif renorm == 'clamp_0_renorm_1_end':
+        image_batch = torch.clamp(recon_batch, 0, None)
+        image_batch = renormalize(image_batch)
     if return_history:
         return image_batch, history
     else:
