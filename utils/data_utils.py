@@ -114,7 +114,7 @@ def get_init_data(transform, dataset_name, batch_size, data_dir='./data'):
     # Data Loader (Input Pipeline)
     train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True,
                                                num_workers=NUM_WORKERS)
-    test_loader = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False,
+    test_loader = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=True,
                                               num_workers=NUM_WORKERS)
 
     return train_loader, test_loader
