@@ -227,7 +227,8 @@ def get_model_assets(model_assets=None, reset_model=True, use_same_init=True):
         return model_assets
 
 
-def get_train_data_next_iter(train_data, data_generated, add_old_dataset=False, keep_portion=1.0):
+def get_train_data_next_iter(train_data, data_generated, add_old_dataset=False, keep_portion=1.0, **kwargs):
+    # **kwargs: a hack of not receiving batch_size from input
     return utils.data_utils.get_train_data_next_iter(train_data, data_generated, add_old_dataset=add_old_dataset,
                                                      keep_portion=keep_portion, batch_size=BATCH_SIZE,
                                                      num_workers=NUM_WORKERS)
