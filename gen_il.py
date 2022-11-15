@@ -139,7 +139,9 @@ if __name__ == '__main__':
     with open(os.path.join(log_dir, 'args.json'), 'w') as f:
         json.dump(vars(args), f)
 
-    gen_kwargs = {'renorm': args.gen_norm, 'no_renorm_last_iter': args.no_renorm_last_iter}
+    gen_kwargs = {'renorm': args.gen_norm,
+                  'no_renorm_last_iter': args.no_renorm_last_iter,
+                  'dataset_name': dataset_name}
 
     if model_type == 'gan':
         model_utils = gan_utils

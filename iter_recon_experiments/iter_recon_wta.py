@@ -1,7 +1,7 @@
 import os
 import torch
 import argparse
-from utils.train_utils import set_seed
+from utils.train_utils import str2bool, set_seed
 from utils.data_utils import get_init_data
 
 set_seed(1234)
@@ -19,6 +19,9 @@ if __name__ == '__main__':
     parser.add_argument('--sz', type=int, default=64)
     parser.add_argument('--dataset', type=str, default='mnist')
     parser.add_argument('--net_type', type=str, default='wta')
+    parser.add_argument('--renorm', type=str, default='none')
+    parser.add_argument('--no_renorm_last_iter', type=str2bool, nargs='?', const=True, default=False,
+                        help='no_renorm_last_iter')
     parser.add_argument('--data_dir', type=str, default='./data')
 
     args = parser.parse_args()
@@ -51,4 +54,7 @@ if __name__ == '__main__':
         model, optimizer, avg_loss = train_one_epoch(model, optimizer, train_data)
         print('====> Epoch: {} Average train loss: {:.4f}'.format(epoch, avg_loss))
         evaluate((model, optimizer), test_data, data_config['transform'], log_dir=log_dir, iteration=epoch)
-        save_sample((model, optimizer), log_dir, epoch, data_config['transform'])
+        save_sample((model, optimizer), log_dir, epoch, data_config['transform'],
+                    dataset_name=args.dataset,
+                    renorm=args.renorm,
+                    no_renorm_last_iter=False)

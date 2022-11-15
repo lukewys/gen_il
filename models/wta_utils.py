@@ -9,6 +9,7 @@ import copy
 import utils.data_utils
 from evaluate.linear_probe import LinearProbeModel
 from utils.iter_recon_utils import recon_till_converge
+from utils.music_data_utils import single_channel_pianoroll_save_to_midi
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -220,7 +221,8 @@ def evaluate(model_assets, test_data, transform, **kwargs):
         for batch_idx, (data, _) in enumerate(test_data):
             data = data.to(device)
             recon_batch = model(data)
-            loss = .5 * ((recon_batch - data) ** 2).sum() / data.shape[0]  # loss_function(recon_batch, data)
+            loss = .5 * ((recon_batch - data) ** 2).sum() / data.shape[0]
+            #loss = nn.BCELoss()(recon_batch, data)
             test_loss += loss.item()
 
         print('====> Average test loss: {:.4f}'.format(
@@ -252,6 +254,7 @@ def train_with_teacher(new_model_assets, old_model_assets, steps, batch_size=BAT
         optimizer.zero_grad()
         recon_batch = model(data)
         loss = .5 * ((recon_batch - data) ** 2).sum() / data.shape[0]
+        #loss = nn.BCELoss()(recon_batch, data)
         loss.backward()
         train_loss.append(loss.item())
         optimizer.step()
@@ -296,6 +299,10 @@ def get_data_config(dataset_name):
     elif dataset_name in ['mpi3d', 'dsprite']:
         transform = None
         config = {'image_size': 64, 'ch': 1, 'transform': transform, 'out_act': 'sigmoid'}
+        return config
+    elif dataset_name == 'bach':
+        transform = None
+        config = {'image_size': 48, 'ch': 1, 'transform': transform, 'out_act': 'sigmoid'}
         return config
     else:
         raise ValueError('Unknown dataset name: {}'.format(dataset_name))
@@ -400,7 +407,8 @@ def get_kernel_visualization(model):
 
 
 def save_sample(model_assets, log_dir, iteration, transform,
-                thres=DIFF_THRES, max_iteration=MAX_RECON_ITER, save_kernel=True, **gen_kwargs):
+                thres=DIFF_THRES, max_iteration=MAX_RECON_ITER, save_kernel=True,
+                **gen_kwargs):
     model, optimizer = model_assets
     model.eval()
     sample_z = model.sample_z.to(device)
@@ -423,6 +431,14 @@ def save_sample(model_assets, log_dir, iteration, transform,
         kernel_img = utils.data_utils.denormalize(kernel_img, transform)
         save_image(kernel_img.view(model.code_sz, ch, image_size, image_size),
                    f'{log_dir}/kernel_iter_{iteration}' + '.png', nrow=8)
+    if gen_kwargs['dataset_name'] == 'bach':
+        sample = sample.detach().cpu().numpy()
+        sample[sample < 0.5] = 0
+        sample[sample >= 0.5] = 1
+        sample = sample.astype(np.uint8)
+        sample = sample[:16]
+        output_dir = f'{log_dir}/midi_sample_iter_{iteration}_small'
+        single_channel_pianoroll_save_to_midi(sample, output_dir)
 
 
 def get_linear_probe_model(model_assets):

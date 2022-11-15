@@ -7,6 +7,7 @@ import torch
 import torch.utils.data
 from utils.train_utils import NUM_WORKERS
 from torchvision import datasets, transforms
+from utils.music_data_utils import BachPianorollNoteDataset
 
 
 def get_train_data_next_iter(train_data, data_generated, add_old_dataset=False, keep_portion=1.0,
@@ -108,6 +109,11 @@ def get_init_data(transform, dataset_name, batch_size, data_dir='./data'):
             np.load(f'{data_dir}/google_draw/google_draw_test.npy').astype(np.float32) / 255).reshape(-1, 1, 28, 28)
         train_dataset = torch.utils.data.TensorDataset(train_data, train_data)
         test_dataset = torch.utils.data.TensorDataset(test_data, test_data)
+    elif dataset_name == 'bach':
+        data = np.load(f'{data_dir}/JsbChord16thSeparated.npy', allow_pickle=True, encoding='latin1')  # coconet
+        window_length = 48
+        train_dataset = BachPianorollNoteDataset(data.item()['train'], window_length=window_length)
+        test_dataset = BachPianorollNoteDataset(data.item()['valid'], window_length=window_length)
     else:
         raise Exception('Dataset not supported')
 
@@ -127,6 +133,8 @@ def flip_image_value(img):
 def denormalize(x, transform):
     # https://github.com/pytorch/vision/issues/848
     # x: B, C, H, W
+    if transform is None:
+        return x
     mean = None
     std = None
     for t in transform.transforms:
