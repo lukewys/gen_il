@@ -7,3 +7,4 @@
 ./*/logs/
 .logs/
 .gen_il_logs/
+/pretrained_vqvae/

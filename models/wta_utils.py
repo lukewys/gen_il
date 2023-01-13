@@ -105,7 +105,7 @@ class WTA(nn.Module):
                  channel_sparsity_rate=1, ch=1,
                  image_size=28, sample_num=1024,
                  kernel_size=5, net_type='wta',
-                 out_act='sigmoid',
+                 out_act='sigmoid', loss_fn='mse',
                  **kwargs):
         super(WTA, self).__init__()
         self.sz = sz
@@ -115,6 +115,7 @@ class WTA(nn.Module):
         self.ch = ch
         self.image_size = image_size
         self.sample_z = torch.rand(sample_num, ch, image_size, image_size)
+        self.loss_fn = loss_fn
 
         if net_type == 'wta':
             self.enc = nn.Sequential(
@@ -141,7 +142,7 @@ class WTA(nn.Module):
                 nn.Conv2d(ch, dim, 4, 2, 1),
                 nn.BatchNorm2d(dim),
                 nn.ReLU(True),
-                nn.Conv2d(dim, dim, 4, 2, 1),
+                nn.Conv2d(dim, dim, 3, 1, 'same'),
                 ResBlock(dim),
                 ResBlock(dim),
             )
@@ -150,7 +151,7 @@ class WTA(nn.Module):
                 ResBlock(dim),
                 ResBlock(dim),
                 nn.ReLU(True),
-                nn.ConvTranspose2d(dim, dim, 4, 2, 1),
+                nn.ConvTranspose2d(dim, dim, 3, 1, 1),
                 nn.BatchNorm2d(dim),
                 nn.ReLU(True),
                 nn.ConvTranspose2d(dim, ch, 4, 2, 1),
@@ -195,7 +196,12 @@ def train_one_epoch(model, optimizer, train_data):
         data = data.to(device)
         optimizer.zero_grad()
         recon_batch = model(data)
-        loss = .5 * ((recon_batch - data) ** 2).sum() / data.shape[0]  # loss_function(recon_batch, data)
+        if not hasattr(model, 'loss_fn') or model.loss_fn == 'mse':
+            loss = .5 * ((recon_batch - data) ** 2).sum() / data.shape[0]
+        elif model.loss_fn == 'bce':
+            loss = nn.BCELoss()(recon_batch, data)
+        else:
+            raise ValueError('Unknown loss function: {}'.format(model.loss_fn))
         loss.backward()
         train_loss += loss.item()
         optimizer.step()
@@ -221,8 +227,12 @@ def evaluate(model_assets, test_data, transform, **kwargs):
         for batch_idx, (data, _) in enumerate(test_data):
             data = data.to(device)
             recon_batch = model(data)
-            loss = .5 * ((recon_batch - data) ** 2).sum() / data.shape[0]
-            #loss = nn.BCELoss()(recon_batch, data)
+            if not hasattr(model, 'loss_fn') or model.loss_fn == 'mse':
+                loss = .5 * ((recon_batch - data) ** 2).sum() / data.shape[0]
+            elif model.loss_fn == 'bce':
+                loss = nn.BCELoss()(recon_batch, data)
+            else:
+                raise ValueError('Unknown loss function: {}'.format(model.loss_fn))
             test_loss += loss.item()
 
         print('====> Average test loss: {:.4f}'.format(
@@ -233,7 +243,7 @@ def evaluate(model_assets, test_data, transform, **kwargs):
         recon = model(data)
         recon = recon.cpu().detach()
         image_size = model.image_size
-        ch = model.ch
+        ch = data.shape[1]
         log_dir = kwargs['log_dir']
         iteration = kwargs['iteration']
         recon = utils.data_utils.denormalize(recon, transform)
@@ -253,8 +263,12 @@ def train_with_teacher(new_model_assets, old_model_assets, steps, batch_size=BAT
         data = gen_data(old_model_assets, batch_size, 1, **kwargs).to(device)
         optimizer.zero_grad()
         recon_batch = model(data)
-        loss = .5 * ((recon_batch - data) ** 2).sum() / data.shape[0]
-        #loss = nn.BCELoss()(recon_batch, data)
+        if not hasattr(model, 'loss_fn') or model.loss_fn == 'mse':
+            loss = .5 * ((recon_batch - data) ** 2).sum() / data.shape[0]
+        elif model.loss_fn == 'bce':
+            loss = nn.BCELoss()(recon_batch, data)
+        else:
+            raise ValueError('Unknown loss function: {}'.format(model.loss_fn))
         loss.backward()
         train_loss.append(loss.item())
         optimizer.step()
@@ -272,6 +286,14 @@ def get_data_config(dataset_name):
             transforms.Resize(28),
         ])
         config = {'image_size': 28, 'ch': 1, 'transform': transform, 'out_act': 'sigmoid'}
+        return config
+    elif dataset_name == 'mnist-tanh':
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Resize(28),
+            transforms.Normalize((0.5,), (0.5,))
+        ])
+        config = {'image_size': 28, 'ch': 1, 'transform': transform, 'out_act': 'tanh'}
         return config
     elif dataset_name == 'omniglot':
         transform = transforms.Compose([
@@ -413,7 +435,7 @@ def save_sample(model_assets, log_dir, iteration, transform,
     model.eval()
     sample_z = model.sample_z.to(device)
     image_size = model.image_size
-    ch = model.ch
+    ch = sample_z.shape[1]
     sample_num = sample_z.shape[0]
     sample = recon_till_converge(model, recon_fn, sample_z, thres=thres, max_iteration=max_iteration,
                                  renorm=gen_kwargs['renorm'],
