@@ -13,7 +13,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--batch_size', type=int, default=100)
-    parser.add_argument('--lifetime_sparsity_rate', type=float, default=0.6)
+    parser.add_argument('--lifetime_sparsity_rate', type=float, default=1.0)
     parser.add_argument('--channel_sparsity_rate', type=float, default=1.0)
     parser.add_argument('--code_sz', type=int, default=128)
     parser.add_argument('--sz', type=int, default=128)
@@ -23,13 +23,16 @@ if __name__ == '__main__':
     parser.add_argument('--no_renorm_last_iter', type=str2bool, nargs='?', const=True, default=False,
                         help='no_renorm_last_iter')
     parser.add_argument('--data_dir', type=str, default='./data')
+    parser.add_argument('--denoise', type=str, default='uniform')
+    parser.add_argument('--noise_factor', type=float, default=0.2)
+
 
     args = parser.parse_args()
 
-    log_dir = f'./logs/wta_logs_changed_lifetime_sparsity/dataset_{args.dataset}_batch_size_{args.batch_size}_' \
+    log_dir = f'./logs/wta_denoise_logs/dataset_{args.dataset}_batch_size_{args.batch_size}_' \
               f'lifetime_sparsity_rate_{args.lifetime_sparsity_rate}_' \
               f'channel_sparsity_rate_{args.channel_sparsity_rate}_code_sz_{args.code_sz}_sz_{args.sz}' \
-              f'_net_type_{args.net_type}'
+              f'_net_type_{args.net_type}_denoise_{args.denoise}_noise_factor_{args.noise_factor}'
     os.makedirs(log_dir, exist_ok=True)
 
     batch_size = args.batch_size
@@ -46,7 +49,10 @@ if __name__ == '__main__':
                                         image_size=data_config['image_size'],
                                         ch=data_config['ch'],
                                         out_act=data_config['out_act'],
-                                        net_type=args.net_type)
+                                        net_type=args.net_type,
+                                        denoise=args.denoise,
+                                        noise_factor=args.noise_factor,
+                                        )
 
     total_epoch = 50
     for epoch in range(total_epoch):

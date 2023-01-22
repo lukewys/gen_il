@@ -76,12 +76,23 @@ def lifetime_sparsity(h, rate=0.05):
     shp = h.shape
     n = shp[0]
     c = shp[1]
-    h_reshape = h.reshape((n, -1))
+    h_reshape = h.sum((2, 3)).reshape((n, -1))
     thr, ind = torch.topk(h_reshape, int(rate * n), dim=0)
     batch_mask = 0. * h_reshape
-    batch_mask.scatter_(0, ind, 1)
-    batch_mask = batch_mask.reshape(shp)
-    return h * batch_mask
+    # set the top k channels to 1
+    batch_mask[ind, torch.arange(c)] = 1
+    return h * batch_mask[:, :, None, None]
+
+
+# x = torch.zeros(100, 128, 16, 16)
+# for b in range(100):
+#     for i in range(128):
+#         x[b][i][2][2] = torch.rand(1)
+#
+# print((x != 0).sum())
+# s = lifetime_sparsity(x, 0.05)
+# print((s != 0).sum())
+# print((s[:,0] != 0).sum())
 
 
 def channel_sparsity(h, rate=0.05):
@@ -106,6 +117,7 @@ class WTA(nn.Module):
                  image_size=28, sample_num=1024,
                  kernel_size=5, net_type='wta',
                  out_act='sigmoid', loss_fn='mse',
+                 denoise='none', noise_factor=0.2,
                  **kwargs):
         super(WTA, self).__init__()
         self.sz = sz
@@ -116,6 +128,8 @@ class WTA(nn.Module):
         self.image_size = image_size
         self.sample_z = torch.rand(sample_num, ch, image_size, image_size)
         self.loss_fn = loss_fn
+        self.denoise = denoise
+        self.noise_factor = noise_factor
 
         if net_type == 'wta':
             self.enc = nn.Sequential(
@@ -137,21 +151,20 @@ class WTA(nn.Module):
             )
         elif net_type == 'vqvae':
             dim = sz
-            self.code_sz = sz
             self.enc = nn.Sequential(
                 nn.Conv2d(ch, dim, 4, 2, 1),
                 nn.BatchNorm2d(dim),
                 nn.ReLU(True),
-                nn.Conv2d(dim, dim, 3, 1, 'same'),
-                ResBlock(dim),
-                ResBlock(dim),
+                nn.Conv2d(dim, self.code_sz, 4, 2, 1),
+                ResBlock(self.code_sz),
+                ResBlock(self.code_sz),
             )
 
             self.dec = nn.Sequential(
-                ResBlock(dim),
-                ResBlock(dim),
+                ResBlock(self.code_sz),
+                ResBlock(self.code_sz),
                 nn.ReLU(True),
-                nn.ConvTranspose2d(dim, dim, 3, 1, 1),
+                nn.ConvTranspose2d(self.code_sz, dim, 4, 2, 1),
                 nn.BatchNorm2d(dim),
                 nn.ReLU(True),
                 nn.ConvTranspose2d(dim, ch, 4, 2, 1),
@@ -194,6 +207,10 @@ def train_one_epoch(model, optimizer, train_data):
     train_loss = 0
     for batch_idx, (data, _) in enumerate(train_data):
         data = data.to(device)
+        if model.denoise == 'gaussian':
+            data = torch.clip(data + torch.randn_like(data) * model.noise_factor, 0, 1)
+        elif model.denoise == 'uniform':
+            data = torch.clip(data + torch.rand_like(data) * model.noise_factor, 0, 1)
         optimizer.zero_grad()
         recon_batch = model(data)
         if not hasattr(model, 'loss_fn') or model.loss_fn == 'mse':
@@ -285,7 +302,7 @@ def get_data_config(dataset_name):
             transforms.ToTensor(),
             transforms.Resize(28),
         ])
-        config = {'image_size': 28, 'ch': 1, 'transform': transform, 'out_act': 'sigmoid'}
+        config = {'image_size': 28, 'ch': 1, 'transform': transform, 'out_act': 'none'}
         return config
     elif dataset_name == 'mnist-tanh':
         transform = transforms.Compose([

@@ -20,7 +20,7 @@ BATCH_SIZE = 500
 # loss
 criterion = nn.BCELoss()
 z_dim = 100
-mnist_dim = 28 * 28
+mnist_dim = 64 * 64
 lr = 0.0002
 NUM_WORKERS = 8
 SAMPLE_NUM = 1024
@@ -58,9 +58,12 @@ class Generator(nn.Module):
             nn.ConvTranspose2d(ngf * 2, ngf, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ngf),
             nn.ReLU(True),
-            nn.ConvTranspose2d(ngf, nc, kernel_size=1, stride=1, padding=2, bias=False),
+            # state size. (ngf) x 32 x 32
+            nn.ConvTranspose2d(ngf, nc, 4, 2, 1, bias=False),
             nn.Tanh()
+            # state size. (nc) x 64 x 64
         )
+        self.image_ch = nc
 
     def forward(self, input):
         output = self.main(input)
@@ -83,9 +86,14 @@ class Discriminator(nn.Module):
             nn.BatchNorm2d(ndf * 4),
             nn.LeakyReLU(0.2, inplace=True),
             # state size. (ndf*4) x 8 x 8
-            nn.Conv2d(ndf * 4, 1, 4, 2, 1, bias=False),
+            nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(ndf * 8),
+            nn.LeakyReLU(0.2, inplace=True),
+            # state size. (ndf*8) x 4 x 4
+            nn.Conv2d(ndf * 8, 1, 4, 1, 0, bias=False),
             nn.Sigmoid()
         )
+        self.image_ch = nc
 
     def forward(self, input):
         output = self.main(input)
@@ -97,7 +105,7 @@ def D_train(x, G, D, D_optimizer):
     D.zero_grad()
 
     # train discriminator on real
-    x_real, y_real = x.view(-1, 1, 28, 28), torch.ones(x.shape[0])
+    x_real, y_real = x.view(-1, D.image_ch, 64, 64), torch.ones(x.shape[0])
     x_real, y_real = Variable(x_real.to(device)), Variable(y_real.to(device))
 
     D_output = D(x_real)
@@ -138,7 +146,7 @@ def G_train(x, G, D, G_optimizer):
     return G_loss.data.item()
 
 
-def train(model_assets, train_data, train_extend):
+def train(model_assets, train_data, train_extend, log_dir=None, transform=None):
     G, D, G_optimizer, D_optimizer = model_assets
     G.train()
     D.train()
@@ -151,6 +159,8 @@ def train(model_assets, train_data, train_extend):
         if epoch % 10 == 0:
             print('[%d/%d]: loss_d: %.3f, loss_g: %.3f' % (
                 epoch, total_epoch, torch.mean(torch.FloatTensor(D_losses)), torch.mean(torch.FloatTensor(G_losses))))
+            if log_dir is not None:
+                save_sample((G, D, G_optimizer, D_optimizer), log_dir, epoch, transform)
 
     return G, D, G_optimizer, D_optimizer
 
@@ -183,24 +193,43 @@ def get_transform(dataset_name):
     if dataset_name in ['mnist', 'fashion-mnist', 'kuzushiji']:
         return transforms.Compose([
             transforms.ToTensor(),
+            transforms.Resize(64),
             transforms.Normalize(mean=(0.5,), std=(0.5,))
         ])
     elif dataset_name == 'omniglot':
         return transforms.Compose([
             transforms.ToTensor(),
             utils.data_utils.flip_image_value,
-            transforms.Resize(28),
+            transforms.Resize(64),
             transforms.Normalize(mean=(0.5,), std=(0.5,))
         ])
-    elif dataset_name in ['cifar10', 'cifar100', 'wikiart']:
-        raise NotImplementedError  # TODO
+    elif dataset_name in ['cifar10', 'cifar100']:  # 'wikiart'
+        return transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Resize(64),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        ])
 
 
-def get_new_model():
+def get_data_config(dataset_name):
+    transform = get_transform(dataset_name)
+    if dataset_name in ['mnist', 'fashion-mnist', 'kuzushiji']:
+        config = {'image_size': 64, 'ch': 1, 'transform': transform}
+        return config
+    elif dataset_name in ['omniglot']:
+        config = {'image_size': 64, 'ch': 1, 'transform': transform}
+        return config
+    elif dataset_name in ['cifar10', 'cifar100']:  # 'wikiart'
+        config = {'image_size': 64, 'ch': 3, 'transform': transform}
+        return config
+
+
+
+def get_new_model(**kwargs):
     # build network
-    G = Generator().to(device)
+    G = Generator(**kwargs).to(device)
     G.apply(weights_init)
-    D = Discriminator().to(device)
+    D = Discriminator(**kwargs).to(device)
     D.apply(weights_init)
 
     # optimizer
@@ -212,11 +241,11 @@ def get_new_model():
 FIX_MODEL_INIT = None
 
 
-def get_model_assets(model_assets=None, reset_model=True, use_same_init=True):
+def get_model_assets(model_assets=None, reset_model=True, use_same_init=True, **kwargs):
     global FIX_MODEL_INIT
     if reset_model:
         if use_same_init and FIX_MODEL_INIT is None:
-            FIX_MODEL_INIT = get_new_model()
+            FIX_MODEL_INIT = get_new_model(**kwargs)
         if use_same_init:
             return copy.deepcopy(FIX_MODEL_INIT)
         else:
@@ -256,8 +285,8 @@ def save_sample(model_assets, log_dir, iteration, transform, **kwargs):
     with torch.no_grad():
         sample = G(SAMPLE_Z).cpu()
     sample = utils.data_utils.denormalize(sample, transform)
-    save_image(sample.view(SAMPLE_NUM, 1, 28, 28), f'{log_dir}/sample_iter_{iteration}_full' + '.png', nrow=32)
-    save_image(sample.view(SAMPLE_NUM, 1, 28, 28)[:64], f'{log_dir}/sample_iter_{iteration}_small' + '.png', nrow=8)
+    save_image(sample.view(SAMPLE_NUM, D.image_ch, 64, 64), f'{log_dir}/sample_iter_{iteration}_full' + '.png', nrow=32)
+    save_image(sample.view(SAMPLE_NUM, D.image_ch, 64, 64)[:64], f'{log_dir}/sample_iter_{iteration}_small' + '.png', nrow=8)
 
 
 def gen_data_by_filter(model_assets, gen_batch_size, gen_num_batch, portion_max=1, portion_min=0.75):
