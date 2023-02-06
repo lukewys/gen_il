@@ -30,6 +30,7 @@ class LatentWTA(nn.Module):
         self.image_ch = image_ch
         self.image_size = image_size
         self.sample_z = torch.rand(sample_num, image_ch, image_size, image_size)
+        self.sample_z = self.sample_z * 2 - 1  # [-1, 1]
         self.loss_fn = loss_fn
 
         if net_type == 'wta':
@@ -155,7 +156,7 @@ def get_data_config(dataset_name):
             transforms.ToTensor(),
             transforms.Normalize((0.5,), (0.5,))
         ])
-        config = {'image_size': 28, 'ch': 1, 'transform': transform, 'out_act': 'sigmoid'}
+        config = {'image_size': 28, 'ch': 1, 'transform': transform, 'out_act': 'tanh'}
         return config
     elif dataset_name in ['cifar10', 'cifar100']:
         transform = transforms.Compose([

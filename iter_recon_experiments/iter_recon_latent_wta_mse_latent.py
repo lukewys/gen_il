@@ -7,7 +7,7 @@ from models.pretrain_vqvae import get_pretrained_vqvae
 
 set_seed(1234)
 
-from models.latent_wta_mse_image_utils import get_model_assets, save_sample, train_one_epoch, get_transform, get_data_config, evaluate
+from models.latent_wta_mse_latent_utils import get_model_assets, save_sample, train_one_epoch, get_transform, get_data_config, evaluate
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -18,7 +18,7 @@ if __name__ == '__main__':
     parser.add_argument('--channel_sparsity_rate', type=float, default=1.0)
     parser.add_argument('--code_sz', type=int, default=128)
     parser.add_argument('--sz', type=int, default=128)
-    parser.add_argument('--dataset', type=str, default='cifar10')
+    parser.add_argument('--dataset', type=str, default='mnist')
     parser.add_argument('--net_type', type=str, default='wta')
     parser.add_argument('--renorm', type=str, default='none')
     parser.add_argument('--no_renorm_last_iter', type=str2bool, nargs='?', const=True, default=False,

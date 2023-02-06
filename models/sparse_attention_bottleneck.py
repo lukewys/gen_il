@@ -43,6 +43,7 @@ class SparseAttnBottleneck(nn.Module):
 
         # attention
         dots = torch.einsum('bd,kd->bk', q, k)
+        dots = dots / math.sqrt(k.shape[-1])  # scale by sqrt(dk)
 
         # top k of attention
         top_value, top_ind = dots.topk(self.num_topk, dim=-1)

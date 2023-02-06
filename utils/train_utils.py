@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import torch.utils.data
 
-NUM_WORKERS = 0
+NUM_WORKERS = 8
 
 
 # todo: calculate MAE for measuring reconstruction

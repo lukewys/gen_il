@@ -16,9 +16,9 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=100)
     parser.add_argument('--lifetime_sparsity_rate', type=float, default=0.05)
     parser.add_argument('--channel_sparsity_rate', type=float, default=1.0)
-    parser.add_argument('--code_sz', type=int, default=256)
-    parser.add_argument('--sz', type=int, default=256)
-    parser.add_argument('--dataset', type=str, default='cifar10')
+    parser.add_argument('--code_sz', type=int, default=128)
+    parser.add_argument('--sz', type=int, default=128)
+    parser.add_argument('--dataset', type=str, default='mnist')
     parser.add_argument('--net_type', type=str, default='wta')
     parser.add_argument('--renorm', type=str, default='none')
     parser.add_argument('--no_renorm_last_iter', type=str2bool, nargs='?', const=True, default=False,

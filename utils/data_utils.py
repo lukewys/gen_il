@@ -39,6 +39,20 @@ def get_init_data(transform, dataset_name, batch_size, data_dir='./data'):
     if dataset_name == 'mnist':
         train_dataset = datasets.MNIST(root=f'{data_dir}/mnist_data/', train=True, transform=transform, download=True)
         test_dataset = datasets.MNIST(root=f'{data_dir}/mnist_data/', train=False, transform=transform, download=True)
+    elif dataset_name == 'colored_mnist':
+        train_data = torch.load(f'{data_dir}/colored_mnist_data/colored_mnist_7_colors_train_data.pt')
+        train_label = torch.load(f'{data_dir}/colored_mnist_data/colored_mnist_7_colors_train_label.pt')
+        test_data = torch.load(f'{data_dir}/colored_mnist_data/colored_mnist_7_colors_test_data.pt')
+        test_label = torch.load(f'{data_dir}/colored_mnist_data/colored_mnist_7_colors_test_label.pt')
+        train_dataset = torch.utils.data.TensorDataset(train_data.float(), train_label)
+        test_dataset = torch.utils.data.TensorDataset(test_data.float(), test_label)
+    elif dataset_name == 'colored_mnist_by_digits':
+        train_data = torch.load(f'{data_dir}/colored_mnist_data/colored_mnist_by_digits_train_data.pt')
+        train_label = torch.load(f'{data_dir}/colored_mnist_data/colored_mnist_by_digits_train_label.pt')
+        test_data = torch.load(f'{data_dir}/colored_mnist_data/colored_mnist_by_digits_test_data.pt')
+        test_label = torch.load(f'{data_dir}/colored_mnist_data/colored_mnist_by_digits_test_label.pt')
+        train_dataset = torch.utils.data.TensorDataset(train_data.float(), train_label)
+        test_dataset = torch.utils.data.TensorDataset(test_data.float(), test_label)
     elif dataset_name == 'fashion_mnist':
         train_dataset = datasets.FashionMNIST(root=f'{data_dir}/fashion_mnist_data/', train=True, transform=transform,
                                               download=True)
@@ -65,6 +79,11 @@ def get_init_data(transform, dataset_name, batch_size, data_dir='./data'):
                                           download=True)
         test_dataset = datasets.CIFAR100(root=f'{data_dir}/cifar100_data/', train=False, transform=transform,
                                          download=True)
+    elif dataset_name == 'svhn':
+        train_dataset = datasets.SVHN(root=f'{data_dir}/svhn_data/', split='train', transform=transform,
+                                      download=True)
+        test_dataset = datasets.SVHN(root=f'{data_dir}/svhn_data/', split='test', transform=transform,
+                                     download=True)
     elif dataset_name == 'wikiart':
         # https://github.com/cs-chan/ArtGAN/tree/master/WikiArt%20Dataset
         train_dataset = datasets.ImageFolder(root=f'{data_dir}/wikiart_split/train/', transform=transform)

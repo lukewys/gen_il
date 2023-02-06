@@ -130,6 +130,8 @@ class WTA(nn.Module):
         self.loss_fn = loss_fn
         self.denoise = denoise
         self.noise_factor = noise_factor
+        if out_act == 'tanh' or self.ch == 3:
+            self.sample_z = self.sample_z * 2 - 1  # [-1, 1]
 
         if net_type == 'wta':
             self.enc = nn.Sequential(
@@ -207,12 +209,21 @@ def train_one_epoch(model, optimizer, train_data):
     train_loss = 0
     for batch_idx, (data, _) in enumerate(train_data):
         data = data.to(device)
-        if model.denoise == 'gaussian':
-            data = torch.clip(data + torch.randn_like(data) * model.noise_factor, 0, 1)
-        elif model.denoise == 'uniform':
-            data = torch.clip(data + torch.rand_like(data) * model.noise_factor, 0, 1)
+        if hasattr(model, 'denoise'):
+            if model.denoise == 'gaussian':
+                data_inp = data + torch.randn_like(data) * model.noise_factor
+            elif model.denoise == 'uniform':
+                data_inp = data + torch.rand_like(data) * model.noise_factor
+            elif model.denoise == 'gaussian-clip':
+                data_inp = torch.clip(data + torch.randn_like(data) * model.noise_factor, 0, 1)
+            elif model.denoise == 'uniform-clip':
+                data_inp = torch.clip(data + torch.rand_like(data) * model.noise_factor, 0, 1)
+            else:
+                raise ValueError('Unknown denoise type: {}'.format(model.denoise))
+        else:
+            data_inp = data
         optimizer.zero_grad()
-        recon_batch = model(data)
+        recon_batch = model(data_inp)
         if not hasattr(model, 'loss_fn') or model.loss_fn == 'mse':
             loss = .5 * ((recon_batch - data) ** 2).sum() / data.shape[0]
         elif model.loss_fn == 'bce':
@@ -318,11 +329,19 @@ def get_data_config(dataset_name):
             utils.data_utils.flip_image_value,
             transforms.Resize(28),
         ])
-        config = {'image_size': 28, 'ch': 1, 'transform': transform, 'out_act': 'sigmoid'}
+        config = {'image_size': 28, 'ch': 1, 'transform': transform, 'out_act': 'none'}
         return config
     elif dataset_name in ['cifar10', 'cifar100']:
         transform = transforms.Compose([
             transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        ])
+        config = {'image_size': 32, 'ch': 3, 'transform': transform, 'out_act': 'tanh'}
+        return config
+    elif dataset_name == 'svhn':
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Resize(32),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
         ])
         config = {'image_size': 32, 'ch': 3, 'transform': transform, 'out_act': 'tanh'}
@@ -342,6 +361,13 @@ def get_data_config(dataset_name):
     elif dataset_name == 'bach':
         transform = None
         config = {'image_size': 48, 'ch': 1, 'transform': transform, 'out_act': 'sigmoid'}
+        return config
+    elif dataset_name in ['colored_mnist', 'colored_mnist_by_digits']:
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        ]) # this is a hack. the transform will not be applied to the dataset
+        config = {'image_size': 28, 'ch': 3, 'transform': transform, 'out_act': 'tanh'}
         return config
     else:
         raise ValueError('Unknown dataset name: {}'.format(dataset_name))
@@ -411,6 +437,10 @@ def recon_fn(model, image_batch):
     return model(image_batch, spatial=True, lifetime=False)
 
 
+def recon_fn_lifetime(model, image_batch):
+    return model(image_batch, spatial=True, lifetime=True)
+
+
 def gen_data(model_assets, gen_batch_size, gen_num_batch, thres=DIFF_THRES, max_iteration=MAX_RECON_ITER, **kwargs):
     data_all = []
     model, optimizer = model_assets
@@ -426,17 +456,17 @@ def gen_data(model_assets, gen_batch_size, gen_num_batch, thres=DIFF_THRES, max_
     return data_all
 
 
-def get_kernel_visualization(model):
+def get_kernel_visualization(model, act=1):
     code_size = model.code_sz
     image_size = model.image_size
     if model.net_type == 'wta':
         latent = torch.zeros([code_size, code_size, image_size - 12, image_size - 12])  # See page 167 of the PHD thesis
         for i in range(code_size):
-            latent[i, i, (image_size - 12) // 2, (image_size - 12) // 2] = 1  # Set middle point as 1
+            latent[i, i, (image_size - 12) // 2, (image_size - 12) // 2] = act  # Set middle point as 1
     elif model.net_type == 'vqvae':
         latent = torch.zeros([code_size, code_size, image_size // 4, image_size // 4])
         for i in range(code_size):
-            latent[i, i, (image_size // 4) // 2, (image_size // 4) // 2] = 1  # Set middle point as 1
+            latent[i, i, (image_size // 4) // 2, (image_size // 4) // 2] = act  # Set middle point as 1
     else:
         raise ValueError('Unknown net type: {}'.format(model.net_type))
     with torch.no_grad():
@@ -466,10 +496,18 @@ def save_sample(model_assets, log_dir, iteration, transform,
     np.save(f'{log_dir}/sample_iter_{iteration}_full' + '.npy',
             sample.view(sample_num, ch, image_size, image_size).numpy())
     if save_kernel:
-        kernel_img = get_kernel_visualization(model)
+        kernel_img = get_kernel_visualization(model, act=1)
         kernel_img = utils.data_utils.denormalize(kernel_img, transform)
         save_image(kernel_img.view(model.code_sz, ch, image_size, image_size),
-                   f'{log_dir}/kernel_iter_{iteration}' + '.png', nrow=8)
+                   f'{log_dir}/kernel_iter_{iteration}_act_1' + '.png', nrow=8)
+        kernel_img = get_kernel_visualization(model, act=2)
+        kernel_img = utils.data_utils.denormalize(kernel_img, transform)
+        save_image(kernel_img.view(model.code_sz, ch, image_size, image_size),
+                   f'{log_dir}/kernel_iter_{iteration}_act_2' + '.png', nrow=8)
+        kernel_img = get_kernel_visualization(model, act=4)
+        kernel_img = utils.data_utils.denormalize(kernel_img, transform)
+        save_image(kernel_img.view(model.code_sz, ch, image_size, image_size),
+                   f'{log_dir}/kernel_iter_{iteration}_act_4' + '.png', nrow=8)
     if gen_kwargs['dataset_name'] == 'bach':
         sample = sample.detach().cpu().numpy()
         sample[sample < 0.5] = 0
