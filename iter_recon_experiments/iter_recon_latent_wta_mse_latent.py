@@ -46,6 +46,9 @@ if __name__ == '__main__':
     elif args.dataset == 'cifar10':
         model_path = '/data/creativity_generation/generative_IL/pretrained_vqvae/pytorch-vqvae-master/models/models_cifar/best.pt'
         vqvae = get_pretrained_vqvae(3, model_path)
+    elif args.dataset == 'celeba':
+        model_path = '/data/creativity_generation/generative_IL/pretrained_vqvae/pytorch-vqvae-master/models/models_celeba/best.pt'
+        vqvae = get_pretrained_vqvae(3, model_path)
 
     model, optimizer = get_model_assets(lifetime_sparsity_rate=args.lifetime_sparsity_rate,
                                         channel_sparsity_rate=args.channel_sparsity_rate,

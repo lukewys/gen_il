@@ -53,6 +53,27 @@ def get_init_data(transform, dataset_name, batch_size, data_dir='./data'):
         test_label = torch.load(f'{data_dir}/colored_mnist_data/colored_mnist_by_digits_test_label.pt')
         train_dataset = torch.utils.data.TensorDataset(train_data.float(), train_label)
         test_dataset = torch.utils.data.TensorDataset(test_data.float(), test_label)
+    elif dataset_name == 'colored_mnist_all_red':
+        train_data = torch.load(f'{data_dir}/colored_mnist_data/colored_mnist_all_red_train_data.pt')
+        train_label = torch.load(f'{data_dir}/colored_mnist_data/colored_mnist_all_red_train_label.pt')
+        test_data = torch.load(f'{data_dir}/colored_mnist_data/colored_mnist_all_red_test_data.pt')
+        test_label = torch.load(f'{data_dir}/colored_mnist_data/colored_mnist_all_red_test_label.pt')
+        train_dataset = torch.utils.data.TensorDataset(train_data.float(), train_label)
+        test_dataset = torch.utils.data.TensorDataset(test_data.float(), test_label)
+    elif dataset_name == 'colored_mnist_all_dark_purple':
+        train_data = torch.load(f'{data_dir}/colored_mnist_data/colored_mnist_all_dark_purple_train_data.pt')
+        train_label = torch.load(f'{data_dir}/colored_mnist_data/colored_mnist_all_dark_purple_train_label.pt')
+        test_data = torch.load(f'{data_dir}/colored_mnist_data/colored_mnist_all_dark_purple_test_data.pt')
+        test_label = torch.load(f'{data_dir}/colored_mnist_data/colored_mnist_all_dark_purple_test_label.pt')
+        train_dataset = torch.utils.data.TensorDataset(train_data.float(), train_label)
+        test_dataset = torch.utils.data.TensorDataset(test_data.float(), test_label)
+    elif dataset_name == 'colored_mnist_dark_purple_and_yellow':
+        train_data = torch.load(f'{data_dir}/colored_mnist_data/colored_mnist_dark_purple_and_yellow_train_data.pt')
+        train_label = torch.load(f'{data_dir}/colored_mnist_data/colored_mnist_dark_purple_and_yellow_train_label.pt')
+        test_data = torch.load(f'{data_dir}/colored_mnist_data/colored_mnist_dark_purple_and_yellow_test_data.pt')
+        test_label = torch.load(f'{data_dir}/colored_mnist_data/colored_mnist_dark_purple_and_yellow_test_label.pt')
+        train_dataset = torch.utils.data.TensorDataset(train_data.float(), train_label)
+        test_dataset = torch.utils.data.TensorDataset(test_data.float(), test_label)
     elif dataset_name == 'fashion_mnist':
         train_dataset = datasets.FashionMNIST(root=f'{data_dir}/fashion_mnist_data/', train=True, transform=transform,
                                               download=True)
@@ -138,9 +159,9 @@ def get_init_data(transform, dataset_name, batch_size, data_dir='./data'):
 
     # Data Loader (Input Pipeline)
     train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True,
-                                               num_workers=NUM_WORKERS)
+                                               num_workers=NUM_WORKERS, pin_memory=True)
     test_loader = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=True,
-                                              num_workers=NUM_WORKERS)
+                                              num_workers=NUM_WORKERS, pin_memory=True)
 
     return train_loader, test_loader
 

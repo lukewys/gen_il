@@ -13,13 +13,13 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--batch_size', type=int, default=100)
-    parser.add_argument('--lifetime_sparsity_rate', type=float, default=0.05)
+    parser.add_argument('--batch_size', type=int, default=128)
+    parser.add_argument('--lifetime_sparsity_rate', type=float, default=1.0)
     parser.add_argument('--channel_sparsity_rate', type=float, default=1.0)
-    parser.add_argument('--code_sz', type=int, default=128)
-    parser.add_argument('--sz', type=int, default=128)
+    parser.add_argument('--code_sz', type=int, default=48)
+    parser.add_argument('--sz', type=int, default=32)
     parser.add_argument('--dataset', type=str, default='mnist')
-    parser.add_argument('--net_type', type=str, default='wta')
+    parser.add_argument('--net_type', type=str, default='vqvae-0-down')
     parser.add_argument('--renorm', type=str, default='none')
     parser.add_argument('--no_renorm_last_iter', type=str2bool, nargs='?', const=True, default=False,
                         help='no_renorm_last_iter')
@@ -46,6 +46,9 @@ if __name__ == '__main__':
     elif args.dataset == 'cifar10':
         model_path = '/data/creativity_generation/generative_IL/pretrained_vqvae/pytorch-vqvae-master/models/models_cifar/best.pt'
         vqvae = get_pretrained_vqvae(3, model_path)
+    elif args.dataset == 'celeba':
+        model_path = '/data/creativity_generation/generative_IL/pretrained_vqvae/pytorch-vqvae-master/models/models_celeba/best.pt'
+        vqvae = get_pretrained_vqvae(3, model_path)
 
     model, optimizer = get_model_assets(lifetime_sparsity_rate=args.lifetime_sparsity_rate,
                                         channel_sparsity_rate=args.channel_sparsity_rate,
@@ -70,4 +73,4 @@ if __name__ == '__main__':
                     dataset_name=args.dataset,
                     renorm=args.renorm,
                     no_renorm_last_iter=False,
-                    save_kernel=False)
+                    save_kernel=True)

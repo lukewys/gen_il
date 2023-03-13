@@ -23,8 +23,8 @@ if __name__ == '__main__':
     parser.add_argument('--no_renorm_last_iter', type=str2bool, nargs='?', const=True, default=False,
                         help='no_renorm_last_iter')
     parser.add_argument('--data_dir', type=str, default='./data')
-    parser.add_argument('--denoise', type=str, default='gaussian')
-    parser.add_argument('--noise_factor', type=float, default=0.2)
+    parser.add_argument('--denoise', type=str, default='dropout')
+    parser.add_argument('--noise_factor', type=float, default=0.5)
 
 
     args = parser.parse_args()

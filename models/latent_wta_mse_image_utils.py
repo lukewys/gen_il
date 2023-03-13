@@ -1,10 +1,10 @@
 import torch
 import torch.utils.data
 from torch import nn, optim
+import torch.nn.functional as F
 from torchvision import transforms
 import numpy as np
 import copy
-
 
 from models.wta_utils import ResBlock, weights_init_wta, weights_init_vqvae, spatial_sparsity, lifetime_sparsity, \
     channel_sparsity, TOTAL_EPOCH, evaluate, save_sample
@@ -12,6 +12,7 @@ from models.wta_utils import ResBlock, weights_init_wta, weights_init_vqvae, spa
 from models.pretrain_vqvae import vq_st
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 
 class LatentWTA(nn.Module):
     def __init__(self, vqvae=None, sz=128, code_sz=128,
@@ -72,6 +73,48 @@ class LatentWTA(nn.Module):
                 nn.ReLU(True),
                 nn.ConvTranspose2d(dim, wta_out_ch, 4, 2, 1),
             )
+        elif net_type == 'vqvae-1-down':
+            dim = sz
+            self.enc = nn.Sequential(
+                nn.Conv2d(wta_in_ch, dim, 4, 2, 1),
+                nn.BatchNorm2d(dim),
+                nn.ReLU(True),
+                nn.Conv2d(dim, self.code_sz, 3, 1, 'same'),
+                ResBlock(self.code_sz),
+                ResBlock(self.code_sz),
+            )
+
+            self.dec = nn.Sequential(
+                ResBlock(self.code_sz),
+                ResBlock(self.code_sz),
+                nn.ReLU(True),
+                nn.Conv2d(self.code_sz, dim, 3, 1, 'same'),
+                nn.BatchNorm2d(dim),
+                nn.ReLU(True),
+                nn.ConvTranspose2d(dim, wta_out_ch, 4, 2, 1),
+            )
+
+        elif net_type == 'vqvae-0-down':
+            dim = sz
+            self.enc = nn.Sequential(
+                nn.Conv2d(wta_in_ch, dim, 3, 1, 'same'),
+                nn.BatchNorm2d(dim),
+                nn.ReLU(True),
+                nn.Conv2d(dim, self.code_sz, 3, 1, 'same'),
+                ResBlock(self.code_sz),
+                ResBlock(self.code_sz),
+            )
+
+            self.dec = nn.Sequential(
+                ResBlock(self.code_sz),
+                ResBlock(self.code_sz),
+                nn.ReLU(True),
+                nn.Conv2d(self.code_sz, dim, 3, 1, 'same'),
+                nn.BatchNorm2d(dim),
+                nn.ReLU(True),
+                nn.Conv2d(dim, wta_out_ch, 3, 1, 'same'),
+            )
+
         if out_act == 'sigmoid':
             self.dec = nn.Sequential(self.dec, nn.Sigmoid())
         elif out_act == 'tanh':
@@ -92,11 +135,12 @@ class LatentWTA(nn.Module):
             param.requires_grad = False
 
     def encode(self, x):
-        h = self.enc(x)
-        return h
+        z_q_x_gt, indices_gt = self.vq_encode(x)
+        z = self.enc(z_q_x_gt)
+        return z
 
     def decode(self, z):
-        return self.dec(z)
+        return self.vq_decode(self.dec(z))
 
     def vq_encode(self, x):
         z_e_x = self.vqvae.encoder(x)
@@ -110,14 +154,14 @@ class LatentWTA(nn.Module):
 
     def forward(self, x, spatial=True, lifetime=True):
         z_q_x_gt, indices_gt = self.vq_encode(x)
-        z = self.encode(z_q_x_gt)
+        z = self.enc(z_q_x_gt)
         if spatial:
             z = spatial_sparsity(z)
         if self.channel_sparsity_rate < 1:
             z = channel_sparsity(z, rate=self.channel_sparsity_rate)
         if lifetime:
             z = lifetime_sparsity(z, rate=self.lifetime_sparsity_rate)
-        z_q_x_pred = self.decode(z)
+        z_q_x_pred = self.dec(z)
         out = self.vq_decode(z_q_x_pred)
         if self.training:
             return out, z_q_x_gt, z_q_x_pred
@@ -149,7 +193,6 @@ def train(model_assets, train_data, train_extend):
     return model, optimizer
 
 
-
 def get_data_config(dataset_name):
     if dataset_name in ['mnist', 'fashion_mnist', 'kuzushiji', 'google_draw']:
         transform = transforms.Compose([
@@ -164,6 +207,14 @@ def get_data_config(dataset_name):
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
         ])
         config = {'image_size': 32, 'ch': 3, 'transform': transform, 'out_act': 'tanh'}
+        return config
+    elif dataset_name in ['wikiart', 'celeba']:
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+            transforms.Resize((64, 64)),  # TODO: decide image size
+        ])
+        config = {'image_size': 64, 'ch': 3, 'transform': transform, 'out_act': 'tanh'}
         return config
     else:
         raise ValueError('Unknown dataset name: {}'.format(dataset_name))
@@ -181,6 +232,7 @@ def get_transform(dataset_name):
         ])
     else:
         raise ValueError('Unknown dataset name: {}'.format(dataset_name))
+
 
 def get_new_model(**kwargs):
     model = LatentWTA(**kwargs).to(device)

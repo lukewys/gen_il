@@ -71,15 +71,18 @@ def spatial_sparsity(x):
     return x * equals(x, maxes)
 
 
-def spatial_sparsity_sample(x):
+def spatial_sparsity_sample(x, sample=True):
+    inp = x
+    if not sample:
+        return spatial_sparsity(x)
     ori_shp = x.shape
-    x = x.reshape((x.shape[0], x.shape[1], -1))
-    prob = F.log_softmax(x, dim=-1)
-    sample = torch.multinomial(prob.exp(), 1)
+    x = x.reshape((x.shape[0] * x.shape[1], -1))
+    p = F.softmax(x, dim=1)
+    sample = torch.multinomial(p, 1)
     mask = torch.zeros_like(x)
     mask.scatter_(-1, sample, 1)
     mask = mask.reshape(ori_shp)
-    return x * mask
+    return inp * mask
 
 
 def lifetime_sparsity(h, rate=0.05):
@@ -221,7 +224,7 @@ class WTA(nn.Module):
     def forward(self, x, spatial=True, lifetime=True):
         z = self.encode(x)
         if spatial:
-            z = spatial_sparsity(z)
+            z = spatial_sparsity_sample(z, self.training)
         if self.channel_sparsity_rate < 1:
             z = channel_sparsity(z, rate=self.channel_sparsity_rate)
         if lifetime:
@@ -243,8 +246,6 @@ def train_one_epoch(model, optimizer, train_data):
                 data_inp = torch.clip(data + torch.randn_like(data) * model.noise_factor, 0, 1)
             elif model.denoise == 'uniform-clip':
                 data_inp = torch.clip(data + torch.rand_like(data) * model.noise_factor, 0, 1)
-            elif model.denoise == 'dropout':
-                data_inp = F.dropout(data, model.noise_factor)
             else:
                 data_inp = data
         else:

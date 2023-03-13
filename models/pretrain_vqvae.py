@@ -219,9 +219,7 @@ class VectorQuantizedVAE(nn.Module):
         return x_tilde, z_e_x, z_q_x
 
 
-def get_pretrained_vqvae(num_channels, model_path):
-    hidden_size = 256
-    k = 512
+def get_pretrained_vqvae(num_channels, model_path, hidden_size=256, k=512):
     model = VectorQuantizedVAE(num_channels, hidden_size, k)
     model.load_state_dict(torch.load(model_path))
     return model
